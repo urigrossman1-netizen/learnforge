@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>LearnForge AI</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+body {
+  margin:0;
+  font-family: Arial;
+  background: #0f172a;
+  color:white;
+}
+
+.container {
+  max-width:900px;
+  margin:auto;
+  padding:20px;
+}
+
+input, select, button, textarea {
+  width:100%;
+  padding:12px;
+  margin:8px 0;
+  border:none;
+  border-radius:10px;
+}
+
+button {
+  background:#22c55e;
+  color:white;
+  cursor:pointer;
+}
+
+.card {
+  background:#1e293b;
+  padding:15px;
+  margin-top:15px;
+  border-radius:15px;
+}
+
+.level {
+  padding:10px;
+  margin:5px 0;
+  background:#334155;
+  border-radius:10px;
+  cursor:pointer;
+}
+
+.done {
+  background:#22c55e;
+  text-decoration: line-through;
+}
+
+.progress {
+  height:20px;
+  background:#334155;
+  border-radius:10px;
+}
+
+.progress-bar {
+  height:100%;
+  background:#22c55e;
+  width:0%;
+}
+
+.chat-btn {
+  position:fixed;
+  bottom:20px;
+  left:20px;
+  background:#3b82f6;
+  padding:15px;
+  border-radius:50%;
+}
+
+.chat-box {
+  position:fixed;
+  bottom:80px;
+  left:20px;
+  width:250px;
+  background:#1e293b;
+  padding:10px;
+  border-radius:10px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<h1>🚀 LearnForge AI</h1>
+
+<div class="card">
+  <input id="subject" placeholder="What do you want to learn?">
+  <select id="level">
+    <option>beginner</option>
+    <option>intermediate</option>
+    <option>advanced</option>
+  </select>
+  <button onclick="start()">Start Learning</button>
+</div>
+
+<div id="levels"></div>
+
+<h3 id="stats">XP: 0 | Level: 1</h3>
+
+<div class="progress">
+  <div class="progress-bar" id="bar"></div>
+</div>
+
+</div>
+
+<!-- CHAT -->
+<button class="chat-btn" onclick="toggleChat()">🤖</button>
+
+<div id="chat" class="chat-box" style="display:none;">
+  <div id="messages" style="height:150px; overflow:auto;"></div>
+  <input id="chatInput">
+  <button onclick="send()">Send</button>
+</div>
+
+<script>
+
+let xp=0;
+let lvl=1;
+let completed=0;
+let total=30;
+
+function generateLevels(subj){
+  let html="";
+  for(let i=1;i<=30;i++){
+    html+=`<div class="level" onclick="openLevel(this,${i})">
+    Level ${i}: ${subj}
+    </div>`;
+  }
+  document.getElementById("levels").innerHTML=html;
+}
+
+function start(){
+  let subj=document.getElementById("subject").value;
+  if(!subj) return alert("Enter subject");
+  generateLevels(subj);
+}
+
+function openLevel(el,i){
+  if(el.classList.contains("done")) return;
+
+  let task=prompt("Do this:\nExplain what you learned or write code");
+
+  if(task && task.length>20){
+    el.classList.add("done");
+    xp+=50;
+    completed++;
+
+    update();
+  }else{
+    alert("Write more");
+  }
+}
+
+function update(){
+  document.getElementById("stats").innerText=`XP: ${xp} | Level: ${lvl}`;
+
+  let percent=(completed/total)*100;
+  document.getElementById("bar").style.width=percent+"%";
+
+  if(xp>=lvl*300){
+    lvl++;
+    xp=0;
+  }
+}
+
+function toggleChat(){
+  let c=document.getElementById("chat");
+  c.style.display=c.style.display==="none"?"block":"none";
+}
+
+function send(){
+  let input=document.getElementById("chatInput").value;
+  if(!input) return;
+
+  let m=document.getElementById("messages");
+  m.innerHTML+=`<div>You: ${input}</div>`;
+  m.innerHTML+=`<div style="color:lightgreen;">AI: Think step-by-step and practice more.</div>`;
+
+  document.getElementById("chatInput").value="";
+}
+
+</script>
+
+</body>
+</html>
