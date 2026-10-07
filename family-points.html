@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="he" dir="rtl">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#f6f3ee">
-<title>Family Points</title>
+<title>נקודות משפחתיות</title>
 <style>
 :root {
   --bg:#f6f3ee; --card:#fff; --ink:#1d2433; --muted:#6b7385; --line:#e8e3da;
@@ -46,6 +46,7 @@ h1 { font-size:1.25rem; margin:0; letter-spacing:-.01em; }
 body.parent .parent-only { display:block; }
 body.parent .add { min-height:52px; font-size:1.1rem; }
 body.parent .num { font-size:clamp(4rem,22vw,6rem); }
+h3.cnt { margin:0 0 6px; font-size:.95rem; color:var(--muted); font-weight:600; }
 ul { list-style:none; margin:0; padding:0; max-height:260px; overflow:auto; }
 li { display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--line); font-size:.95rem; }
 li b { color:var(--c); } li span { color:var(--muted); }
@@ -65,10 +66,10 @@ dialog button.danger { background:#d93a3a; border-color:#d93a3a; color:#fff; }
 <body>
 <main>
   <header>
-    <h1>Family Points</h1>
-    <div class="toggle" role="group" aria-label="View">
-      <button id="vKids" aria-pressed="true">Kids</button>
-      <button id="vParent" aria-pressed="false">Parent</button>
+    <h1>נקודות משפחתיות</h1>
+    <div class="toggle" role="group" aria-label="תצוגה">
+      <button id="vKids" aria-pressed="true">ילדים</button>
+      <button id="vParent" aria-pressed="false">הורים</button>
     </div>
   </header>
   <div class="kids" id="kids"></div>
@@ -77,15 +78,15 @@ dialog button.danger { background:#d93a3a; border-color:#d93a3a; color:#fff; }
 <dialog id="confirm">
   <p id="confirmText"></p>
   <div class="row">
-    <button id="no" type="button">Cancel</button>
-    <button id="yes" type="button" class="danger">Reset</button>
+    <button id="no" type="button">ביטול</button>
+    <button id="yes" type="button" class="danger">איפוס</button>
   </div>
 </dialog>
 
 <script>
 (function () {
   var KEY = 'familyPoints.v1';
-  var KIDS = [{ id: 'kid1', name: 'Kid 1' }, { id: 'kid2', name: 'Kid 2' }];
+  var KIDS = [{ id: 'kid1', name: 'אורי' }, { id: 'kid2', name: 'נטע' }];
 
   // State is just a list of timestamps per kid; the total is always history.length.
   function load() {
@@ -101,10 +102,10 @@ dialog button.danger { background:#d93a3a; border-color:#d93a3a; color:#fff; }
 
   function fmt(ts) {
     var d = new Date(ts), now = new Date();
-    var day = d.toDateString() === now.toDateString() ? 'Today'
-      : d.toDateString() === new Date(now - 864e5).toDateString() ? 'Yesterday'
-      : d.toLocaleDateString([], { month: 'short', day: 'numeric' });
-    return day + ', ' + d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    var day = d.toDateString() === now.toDateString() ? 'היום'
+      : d.toDateString() === new Date(now - 864e5).toDateString() ? 'אתמול'
+      : d.toLocaleDateString('he-IL', { month: 'short', day: 'numeric' });
+    return day + ', ' + d.toLocaleTimeString('he-IL', { hour: 'numeric', minute: '2-digit' });
   }
 
   var root = document.getElementById('kids');
@@ -112,11 +113,11 @@ dialog button.danger { background:#d93a3a; border-color:#d93a3a; color:#fff; }
     var el = document.createElement('section');
     el.className = 'kid';
     el.innerHTML =
-      '<h2></h2><div class="num" aria-live="polite"></div><div class="unit">points</div>' +
-      '<button class="add" type="button">+1 POINT</button>' +
-      '<div class="parent-only"><ul></ul><button class="reset" type="button">Reset points…</button></div>';
+      '<h2></h2><div class="num" aria-live="polite"></div><div class="unit">נקודות</div>' +
+      '<button class="add" type="button"><span dir="ltr">+1</span> נקודה</button>' +
+      '<div class="parent-only"><h3 class="cnt"></h3><ul></ul><button class="reset" type="button">איפוס נקודות…</button></div>';
     el.querySelector('h2').textContent = k.name;
-    el.querySelector('.add').setAttribute('aria-label', '+1 point for ' + k.name);
+    el.querySelector('.add').setAttribute('aria-label', '+1 נקודה ל' + k.name);
     el.querySelector('.add').onclick = function () {
       state[k.id].push(Date.now());
       save(); render();
@@ -130,15 +131,16 @@ dialog button.danger { background:#d93a3a; border-color:#d93a3a; color:#fff; }
     KIDS.forEach(function (k) {
       var h = state[k.id], box = k.el.querySelector('.parent-only');
       k.el.querySelector('.num').textContent = h.length;
+      box.querySelector('.cnt').textContent = 'סה״כ ' + h.length + ' פעמים';
       var list = box.querySelector('ul');
       list.innerHTML = '';
       if (!h.length) {
-        var li = document.createElement('li'); li.className = 'empty'; li.textContent = 'No points yet.';
+        var li = document.createElement('li'); li.className = 'empty'; li.textContent = 'אין נקודות עדיין.';
         li.style.border = '0'; list.appendChild(li);
       }
       h.slice().reverse().forEach(function (ts) {
         var li = document.createElement('li');
-        li.innerHTML = '<b>+1</b><span></span>';
+        li.innerHTML = '<b dir="ltr">+1</b><span></span>';
         li.lastChild.textContent = fmt(ts);
         list.appendChild(li);
       });
@@ -161,7 +163,7 @@ dialog button.danger { background:#d93a3a; border-color:#d93a3a; color:#fff; }
   function askReset(k) {
     target = k;
     document.getElementById('confirmText').textContent =
-      'Reset ' + k.name + '’s points and history to 0? This can’t be undone.';
+      'לאפס את הנקודות וההיסטוריה של ' + k.name + '? אי אפשר לבטל.';
     dlg.showModal();
   }
   document.getElementById('no').onclick = function () { dlg.close(); };
