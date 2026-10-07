@@ -1,0 +1,3 @@
+# One song per line: "Artist - Title". Run: uv run drum-agent batch songs.example.txt
+Queen - Another One Bites the Dust
+Toto - Rosanna

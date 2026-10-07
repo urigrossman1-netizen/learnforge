@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "youtube": {
+      "type": "stdio",
+      "command": "uv",
+      "args": ["run", "--quiet", "drum-agent", "mcp", "youtube"]
+    },
+    "spotify": {
+      "type": "stdio",
+      "command": "uv",
+      "args": ["run", "--quiet", "drum-agent", "mcp", "spotify"]
+    }
+  }
+}

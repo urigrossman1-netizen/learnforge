@@ -1,0 +1,23 @@
+{
+  "enabledMcpjsonServers": [
+    "youtube",
+    "spotify"
+  ],
+  "permissions": {
+    "allow": [
+      "Bash(uv run drum-agent:*)",
+      "mcp__youtube__ytdlp_search_videos",
+      "mcp__youtube__ytdlp_get_video_metadata_summary",
+      "mcp__youtube__ytdlp_get_video_metadata",
+      "mcp__spotify__search",
+      "mcp__spotify__get_track",
+      "Read(/charts/**)",
+      "Edit(/charts/**)",
+      "Write(/charts/**)"
+    ],
+    "deny": [
+      "Read(/.env)",
+      "Edit(/.env)"
+    ]
+  }
+}
