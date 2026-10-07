@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f6f3ee">
+<title>Family Points</title>
+<style>
+:root {
+  --bg:#f6f3ee; --card:#fff; --ink:#1d2433; --muted:#6b7385; --line:#e8e3da;
+  --a:#2f6bff; --b:#14a37f;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg:#12151c; --card:#1b2029; --ink:#f2f4f8; --muted:#9aa3b5; --line:#2a303c; --a:#6b97ff; --b:#35c9a3; }
+}
+* { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+body {
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  padding:max(16px,env(safe-area-inset-top)) 16px max(24px,env(safe-area-inset-bottom));
+}
+main { max-width:640px; margin:0 auto; }
+header { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+h1 { font-size:1.25rem; margin:0; letter-spacing:-.01em; }
+.toggle { display:flex; background:var(--line); border-radius:999px; padding:3px; }
+.toggle button {
+  border:0; background:none; color:var(--muted); font:inherit; font-size:.85rem; font-weight:600;
+  padding:7px 14px; border-radius:999px; cursor:pointer;
+}
+.toggle button[aria-pressed="true"] { background:var(--card); color:var(--ink); box-shadow:0 1px 3px rgba(0,0,0,.12); }
+.kids { display:grid; gap:16px; }
+@media (min-width:560px) { .kids { grid-template-columns:1fr 1fr; } }
+.kid { background:var(--card); border:1px solid var(--line); border-radius:24px; padding:22px 20px 20px; text-align:center; }
+.kid h2 { margin:0; font-size:1rem; font-weight:600; color:var(--muted); }
+.num { font-size:clamp(5.5rem,30vw,8.5rem); font-weight:800; line-height:1; letter-spacing:-.04em; margin:6px 0 0; color:var(--c); font-variant-numeric:tabular-nums; }
+.unit { color:var(--muted); font-size:.9rem; margin-bottom:18px; }
+.add {
+  width:100%; min-height:76px; border:0; border-radius:18px; background:var(--c); color:#fff;
+  font:inherit; font-size:1.5rem; font-weight:800; letter-spacing:.02em; cursor:pointer;
+  transition:transform .08s;
+}
+.add:active { transform:scale(.97); }
+.add:focus-visible, .toggle button:focus-visible, .reset:focus-visible { outline:3px solid var(--ink); outline-offset:2px; }
+.kid:nth-child(1) { --c:var(--a); } .kid:nth-child(2) { --c:var(--b); }
+.parent-only { display:none; text-align:left; margin-top:18px; border-top:1px solid var(--line); padding-top:14px; }
+body.parent .parent-only { display:block; }
+body.parent .add { min-height:52px; font-size:1.1rem; }
+body.parent .num { font-size:clamp(4rem,22vw,6rem); }
+ul { list-style:none; margin:0; padding:0; max-height:260px; overflow:auto; }
+li { display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--line); font-size:.95rem; }
+li b { color:var(--c); } li span { color:var(--muted); }
+.empty { color:var(--muted); font-size:.95rem; padding:6px 0; }
+.reset {
+  margin-top:14px; width:100%; background:none; border:1px solid var(--line); color:var(--muted);
+  border-radius:12px; padding:10px; font:inherit; font-size:.9rem; cursor:pointer;
+}
+dialog { border:0; border-radius:20px; padding:24px; background:var(--card); color:var(--ink); max-width:340px; width:calc(100% - 32px); }
+dialog::backdrop { background:rgba(0,0,0,.5); }
+dialog p { margin:0 0 20px; font-size:1.05rem; line-height:1.4; }
+dialog .row { display:flex; gap:10px; }
+dialog button { flex:1; min-height:48px; border-radius:12px; border:1px solid var(--line); background:none; color:var(--ink); font:inherit; font-weight:600; cursor:pointer; }
+dialog button.danger { background:#d93a3a; border-color:#d93a3a; color:#fff; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Family Points</h1>
+    <div class="toggle" role="group" aria-label="View">
+      <button id="vKids" aria-pressed="true">Kids</button>
+      <button id="vParent" aria-pressed="false">Parent</button>
+    </div>
+  </header>
+  <div class="kids" id="kids"></div>
+</main>
+
+<dialog id="confirm">
+  <p id="confirmText"></p>
+  <div class="row">
+    <button id="no" type="button">Cancel</button>
+    <button id="yes" type="button" class="danger">Reset</button>
+  </div>
+</dialog>
+
+<script>
+(function () {
+  var KEY = 'familyPoints.v1';
+  var KIDS = [{ id: 'kid1', name: 'Kid 1' }, { id: 'kid2', name: 'Kid 2' }];
+
+  // State is just a list of timestamps per kid; the total is always history.length.
+  function load() {
+    var s = {};
+    try { s = JSON.parse(localStorage.getItem(KEY)) || {}; } catch (e) {}
+    KIDS.forEach(function (k) {
+      s[k.id] = Array.isArray(s[k.id]) ? s[k.id].filter(Number.isFinite) : [];
+    });
+    return s;
+  }
+  var state = load();
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
+
+  function fmt(ts) {
+    var d = new Date(ts), now = new Date();
+    var day = d.toDateString() === now.toDateString() ? 'Today'
+      : d.toDateString() === new Date(now - 864e5).toDateString() ? 'Yesterday'
+      : d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    return day + ', ' + d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  }
+
+  var root = document.getElementById('kids');
+  KIDS.forEach(function (k) {
+    var el = document.createElement('section');
+    el.className = 'kid';
+    el.innerHTML =
+      '<h2></h2><div class="num" aria-live="polite"></div><div class="unit">points</div>' +
+      '<button class="add" type="button">+1 POINT</button>' +
+      '<div class="parent-only"><ul></ul><button class="reset" type="button">Reset points…</button></div>';
+    el.querySelector('h2').textContent = k.name;
+    el.querySelector('.add').setAttribute('aria-label', '+1 point for ' + k.name);
+    el.querySelector('.add').onclick = function () {
+      state[k.id].push(Date.now());
+      save(); render();
+    };
+    el.querySelector('.reset').onclick = function () { askReset(k); };
+    k.el = el;
+    root.appendChild(el);
+  });
+
+  function render() {
+    KIDS.forEach(function (k) {
+      var h = state[k.id], box = k.el.querySelector('.parent-only');
+      k.el.querySelector('.num').textContent = h.length;
+      var list = box.querySelector('ul');
+      list.innerHTML = '';
+      if (!h.length) {
+        var li = document.createElement('li'); li.className = 'empty'; li.textContent = 'No points yet.';
+        li.style.border = '0'; list.appendChild(li);
+      }
+      h.slice().reverse().forEach(function (ts) {
+        var li = document.createElement('li');
+        li.innerHTML = '<b>+1</b><span></span>';
+        li.lastChild.textContent = fmt(ts);
+        list.appendChild(li);
+      });
+    });
+  }
+
+  // Parent / Kids view
+  function setView(parent) {
+    document.body.classList.toggle('parent', parent);
+    document.getElementById('vParent').setAttribute('aria-pressed', parent);
+    document.getElementById('vKids').setAttribute('aria-pressed', !parent);
+    try { localStorage.setItem(KEY + '.view', parent ? 'parent' : 'kids'); } catch (e) {}
+  }
+  document.getElementById('vKids').onclick = function () { setView(false); };
+  document.getElementById('vParent').onclick = function () { setView(true); };
+  try { setView(localStorage.getItem(KEY + '.view') === 'parent'); } catch (e) {}
+
+  // Reset with confirmation (per kid)
+  var dlg = document.getElementById('confirm'), target = null;
+  function askReset(k) {
+    target = k;
+    document.getElementById('confirmText').textContent =
+      'Reset ' + k.name + '’s points and history to 0? This can’t be undone.';
+    dlg.showModal();
+  }
+  document.getElementById('no').onclick = function () { dlg.close(); };
+  document.getElementById('yes').onclick = function () {
+    if (target) { state[target.id] = []; save(); render(); }
+    dlg.close();
+  };
+
+  // Keep other open tabs/devices-on-same-browser in sync
+  window.addEventListener('storage', function (e) { if (e.key === KEY) { state = load(); render(); } });
+
+  render();
+})();
+</script>
+</body>
+</html>
