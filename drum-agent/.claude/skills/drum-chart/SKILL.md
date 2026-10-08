@@ -15,7 +15,9 @@ Call `mcp__spotify__search` with `query: "<artist> <title>"`, `types: "track"`,
 `limit: 5` (Spotify caps search at 10). It returns lines like
 `Title by Artist (ID: <id>)`. Pick the studio version that matches the request
 and call `mcp__spotify__get_track` with that ID for album, duration (M:SS) and
-URL. The release year arrives later in `run --json` (`meta.spotify.release_date`).
+URL. The release year arrives later in `run --json` (`meta.spotify.release_date`);
+for a file the user supplies, get it from
+`uv run drum-agent search "<artist> - <title>" --json` (`spotify.release_date`).
 
 - The first Spotify MCP call opens a one-time browser login. If the Spotify
   MCP is unavailable or not logged in, run
@@ -82,7 +84,7 @@ comes from the draft (`4/4`, `3/4`, `6/8`, `12/8`).
 
 ````markdown
 # <Title> — <Artist>
-<Album> (<year>) · ♩ = <bpm> · <meter> · <feel: straight 8ths / 16ths / shuffle / half-time> · <length>
+<Album> (<year>) · ♩ = <bpm> (♩. = <bpm> in 6/8 or 12/8) · <meter> · <feel: straight 8ths / 16ths / shuffle / half-time> · <length>
 
 ## Road map
 | Section | Bars | Starts | Groove | Notes |
@@ -139,6 +141,6 @@ failed, run `uv run drum-agent doctor` and report its result instead of guessing
   (git-ignored). Do not commit or share it.
 - If YouTube answers "Sign in to confirm you're not a bot", run
   `uv run drum-agent setup --cookies-from-browser firefox` (the user must be
-  logged in to YouTube in that browser; on Windows Chrome/Edge cookies only
-  work with the browser closed), then reconnect the youtube MCP server
-  (`/mcp`) before searching again. `drum-agent run` picks it up immediately.
+  logged in to YouTube in Firefox; on Windows yt-dlp cannot read Chrome or
+  Edge cookies), then reconnect the youtube MCP server (`/mcp`) before
+  searching again. `drum-agent run` picks it up immediately.

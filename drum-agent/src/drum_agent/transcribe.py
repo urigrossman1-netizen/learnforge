@@ -107,7 +107,8 @@ def transcribe(y: np.ndarray, sr: int = SR, opts: Options | None = None) -> dict
             "bpm_max": round(float(np.percentile(bpms, 95)), 1),
             "beats_per_bar": bpb,
             "subdivision": sub,
-            "first_downbeat_s": round(bars[0]["start_s"], 3) if bars else None,
+            "first_downbeat_s": _first_downbeat(bars),
+            "pickup_beats": bars[0]["partial"]["beats"] if bars and bars[0].get("partial") else 0,
             "bar_restarts": len(resets),
         },
         "duration_s": round(duration, 2),
@@ -376,12 +377,15 @@ def _downbeats(hits, n_beats, bpb, sub, chord_change=None, timbre_change=None, r
         emit[:, 1] = emit[:, 3] = snare - 0.5 * kick
 
     prev = (np.arange(bpb) - 1) % bpb
+    # Restarting on beat 1 is cheaper than restarting mid-bar, so a short bar
+    # (a 2/4 bar, a stop) becomes one partial bar rather than two.
+    restart_cost = reset_cost + np.where(np.arange(bpb) == 0, 0.0, 0.5)
     score = emit[0].copy()
     back = np.zeros((n_beats, bpb), dtype=int)
     for b in range(1, n_beats):
         stay = score[prev]
         best = int(np.argmax(score))
-        jump = score[best] - reset_cost
+        jump = score[best] - restart_cost
         back[b] = np.where(jump > stay, best, prev)
         score = emit[b] + np.maximum(stay, jump)
     pos = np.zeros(n_beats, dtype=int)
@@ -554,9 +558,12 @@ def _sections(bars, bar_groove, feats, steps, min_len=4):
     X = np.hstack([_standardize(g) for g in groups])
     X /= np.linalg.norm(X, axis=1, keepdims=True) + 1e-9
 
-    # Novelty is measured over full bars only: the silence of a stop or a
-    # pickup would otherwise look like a section change on both sides of it.
-    full = [j for j in range(n) if not bars[j].get("partial")] or list(range(n))
+    # Novelty is measured over full bars with drums only: the silence of a stop
+    # or a pickup would otherwise look like a section change on both sides of it.
+    def active(j):
+        return not bars[j].get("partial") and any(bars[j]["hits"].values())
+
+    full = [j for j in range(n) if active(j)] or list(range(n))
     m = len(full)
     ssm = X[full] @ X[full].T
     k = 4
@@ -570,20 +577,35 @@ def _sections(bars, bar_groove, feats, steps, min_len=4):
     crash_on_one = np.array([any(st == 0 for st, _ in bars[j]["hits"]["crash"]) for j in full], float)
     score = novelty + 0.3 * crash_on_one
 
-    # The music restarts after a stop: a section starts at the first full bar.
-    picked = [0] + [i for i in range(1, m) if full[i] - full[i - 1] > 1]
+    # After a stop (a restart of the bar count, or two or more bars without
+    # drums) a section starts at the first full bar with drums again.
+    def stop_between(a, b):
+        gap = range(a + 1, b)
+        return any(bars[j].get("partial") for j in gap) or sum(1 for j in gap if not active(j)) >= 2
+
+    picked = [0] + [i for i in range(1, m) if full[i] - full[i - 1] > 1 and stop_between(full[i - 1], full[i])]
     for i in sorted(range(1, m), key=lambda i: -score[i]):
         if score[i] < 0.4:
             break
         if all(abs(i - b) >= min_len for b in picked) and m - i >= 2 and _changes_at(i, full, bars, feats, crash_on_one):
             picked.append(i)
+    # A section usually starts with a crash on 1, right after the previous
+    # section's fill: prefer that bar when the boundary landed next to it.
+    forced = {i for i in picked if i > 0 and full[i] - full[i - 1] > 1}
+    for k, i in enumerate(picked):
+        if i in forced or i == 0 or crash_on_one[i]:
+            continue
+        for j in (i + 1, i - 1):
+            if 0 < j < m and crash_on_one[j] and all(abs(j - o) >= min_len for o in picked if o != i):
+                picked[k] = j
+                break
     bounds = sorted({0} | {full[i] for i in picked if i > 0}) + [n]
 
     sections, means = [], []
     for si, (a, b) in enumerate(zip(bounds[:-1], bounds[1:])):
         gs = [g for g in bar_groove[a:b] if g]
         main = max(set(gs), key=gs.count) if gs else None
-        whole = [j for j in range(a, b) if not bars[j].get("partial")] or list(range(a, b))
+        whole = [j for j in range(a, b) if active(j)] or list(range(a, b))
         means.append(X[whole].mean(0))
         sections.append(
             {
@@ -667,7 +689,8 @@ def _complete_hats(bars, bpb, sub):
             if sum(1 for st in hats if st % d) > 1 or len(slots & set(hats)) < 0.6 * len(slots):
                 continue  # hats do not follow this grid
             missing = slots - set(hats)
-            if missing and missing <= snares:
+            on_beats = all(st % sub == 0 for st in missing)
+            if missing and missing <= snares and on_beats and len(missing) <= max(2, bpb // 2):
                 vel = round(float(np.median(list(hats.values()))), 2)
                 hats.update({st: vel for st in missing})
                 bar["hits"]["hihat"] = sorted([st, v] for st, v in hats.items())
@@ -700,14 +723,26 @@ def _caveats(opts, restarted=False):
             "Analyzed the full mix (harmonic/percussive separation only); bass guitar "
             "can add extra kick hits. Pass --drum-stem with an isolated drum track for better results."
         )
-    if opts.beats_per_bar == 4:
+    if opts.beats_per_bar == 4 and opts.subdivision == 4:
         notes.append(
             "Time signature assumed 4/4; for 3/4 rerun with --beats-per-bar 3, "
             "for 6/8 with --beats-per-bar 2 --subdivision 3."
         )
     if restarted:
-        notes.append("The bar count restarts at least once (a stop, break or tempo change); bars marked partial are incomplete.")
+        notes.append(
+            "The bar count restarts at least once (a stop, an odd-length bar or a tempo change); bars marked "
+            "partial are incomplete. Right after a restart the bar line can lag by up to two bars when the "
+            "drums alone cannot tell beat 1 from beat 3: check that stretch by ear."
+        )
     return notes
+
+
+def _first_downbeat(bars):
+    """Start of the first complete bar (a pickup bar's virtual start can be < 0)."""
+    for bar in bars:
+        if not bar.get("partial"):
+            return round(max(0.0, bar["start_s"]), 3)
+    return round(max(0.0, bars[0]["start_s"]), 3) if bars else None
 
 
 def hit_times(result: dict) -> list[tuple[float, str]]:

@@ -163,10 +163,12 @@ def cmd_setup(args) -> int:
         else:
             env["DRUM_AGENT_COOKIES_FROM_BROWSER"] = value
             try:
-                config.cookies_from_browser()
+                parsed = config.cookies_from_browser()
             except ValueError as e:
                 print(f"error: {e}", file=sys.stderr)
                 return 2
+            if parsed and parsed[2]:
+                print("note: the YouTube MCP server ignores the +KEYRING part; drum-agent's own downloads use it.")
             updates["DRUM_AGENT_COOKIES_FROM_BROWSER"] = value
     if updates:
         config.write_env(updates)
@@ -259,9 +261,7 @@ def cmd_run(args) -> int:
 def cmd_batch(args) -> int:
     from . import pipeline
 
-    raw = Path(args.file).read_bytes()
-    # Windows PowerShell 5 writes UTF-16 with `>`; Notepad may add a UTF-8 BOM.
-    text = raw.decode("utf-16") if raw[:2] in (b"\xff\xfe", b"\xfe\xff") else raw.decode("utf-8-sig")
+    text = config.read_text_any(Path(args.file))
     songs = [
         line.strip().lstrip("\ufeff")
         for line in text.splitlines()

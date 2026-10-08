@@ -25,16 +25,31 @@ SPOTIFY_MCP_CONSTRAINT = "mcp[cli]>=1.29,<2"
 
 def _parse_env_value(raw: str) -> str:
     raw = raw.strip()
-    if len(raw) >= 2 and raw[0] == raw[-1] and raw[0] in "\"'":
-        return raw[1:-1]
+    quoted = re.match(r"""(["'])(.*?)\1\s*(#.*)?$""", raw)
+    if quoted:
+        return quoted.group(2)
     return re.split(r"\s+#", raw, maxsplit=1)[0].strip()  # drop an inline comment
+
+
+def read_text_any(path: Path) -> str:
+    """Text written by any common Windows or Unix tool: UTF-16 (PowerShell 5 `>`),
+    UTF-8 with or without BOM, or the ANSI code page (Set-Content, Excel)."""
+    raw = Path(path).read_bytes()
+    if raw[:2] in (b"\xff\xfe", b"\xfe\xff"):
+        return raw.decode("utf-16")
+    try:
+        return raw.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        import locale
+
+        return raw.decode(locale.getpreferredencoding(False) or "cp1252", errors="replace")
 
 
 def load_env(path: Path = ENV_FILE) -> None:
     """Load KEY=VALUE lines from .env without overriding the real environment."""
     if not path.exists():
         return
-    for line in path.read_text(encoding="utf-8-sig").splitlines():
+    for line in read_text_any(path).splitlines():
         line = line.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue
@@ -46,7 +61,7 @@ def load_env(path: Path = ENV_FILE) -> None:
 
 def write_env(updates: dict[str, str], path: Path = ENV_FILE) -> None:
     """Merge updates into .env, keeping unrelated lines, and restrict permissions."""
-    lines = path.read_text(encoding="utf-8-sig").splitlines() if path.exists() else []
+    lines = read_text_any(path).splitlines() if path.exists() else []
     remaining = dict(updates)
     out = []
     for line in lines:
@@ -145,3 +160,13 @@ def cookies_from_browser() -> tuple | None:
         )
     keyring = m["keyring"].strip().upper() if m["keyring"] else None
     return (m["name"].strip().lower(), m["profile"], keyring, m["container"])
+
+
+def cookies_for_mcp() -> str | None:
+    """The cookie spec for the YouTube MCP server, which accepts only
+    BROWSER[:PROFILE][::CONTAINER] (no +KEYRING)."""
+    parsed = cookies_from_browser()
+    if not parsed:
+        return None
+    name, profile, _keyring, container = parsed
+    return name + (f":{profile}" if profile else "") + (f"::{container}" if container else "")

@@ -40,8 +40,9 @@ def _hint(e: Exception) -> str:
     if "403" in text and ("Tunnel" in text or "proxy" in text.lower()):
         return "This network blocks the host (proxy 403). Allow youtube.com/googlevideo.com/spotify.com or run locally."
     if "Sign in to confirm" in text or "not a bot" in text:
-        return ("YouTube wants a signed-in session: `uv run drum-agent setup --cookies-from-browser firefox` "
-                "(log in to YouTube in that browser first; on Windows Chrome/Edge must be closed).")
+        return ("YouTube wants a signed-in session: log in to YouTube in Firefox, then "
+                "`uv run drum-agent setup --cookies-from-browser firefox` (on Windows, Chrome and Edge cookies "
+                "cannot be read by yt-dlp).")
     if "DRUM_AGENT_COOKIES_FROM_BROWSER" in text:
         return "Fix or clear it: `uv run drum-agent setup --cookies-from-browser firefox` (or `none`)."
     if "npx" in text or "No such file" in text:
@@ -166,11 +167,20 @@ def _spotify_mcp(song):
                 "In Claude Code ask for any Spotify search once: a browser tab asks you to log in "
                 "(redirect URI http://127.0.0.1:8888/callback must be in your Spotify app). Then re-run doctor."
             )
-        res = client.request(
-            "tools/call", {"name": "search", "arguments": {"query": song, "types": "track", "limit": 3}}, timeout=60
+        relogin = (
+            "Your Spotify login expired or was revoked: delete ~/.spotify-mcp/credentials.json, then run one "
+            "Spotify search in Claude Code to log in again (redirect URI http://127.0.0.1:8888/callback)."
         )
+        try:
+            # Past the server's own 120 s browser-login window, if a refresh fails.
+            res = client.request(
+                "tools/call", {"name": "search", "arguments": {"query": song, "types": "track", "limit": 3}}, timeout=150
+            )
+        except TimeoutError:
+            return "FAIL", f"{name}: search waited for a browser login", relogin
         if res.get("isError"):
-            return "FAIL", _mcp_text(res)[:300], ""
+            text = _mcp_text(res)
+            return "FAIL", text[:300], relogin if "auth" in text.lower() else ""
         return "PASS", f"{name}: {len(tools)} tools; search OK: {_mcp_text(res)[:120]!r}", ""
 
 

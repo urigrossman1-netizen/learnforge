@@ -69,12 +69,19 @@ def markdown(result: dict, meta: dict | None = None) -> str:
     out = [f"# Drum chart (draft): {title}" + (f" — {artist}" if artist else ""), ""]
     out.append("> Machine transcription by drum-agent. Verify by ear before you rely on it.")
     out += ["", "| | |", "|---|---|"]
-    out.append(f"| Tempo | ♩ ≈ {tempo['bpm']:g} BPM (range {tempo['bpm_min']:g}–{tempo['bpm_max']:g}) |")
+    if sub == 3:  # compound time: the beat is a dotted quarter
+        out.append(
+            f"| Tempo | ♩. ≈ {tempo['bpm']:g} (♩ ≈ {tempo['bpm'] * 1.5:.1f}; range ♩. {tempo['bpm_min']:g}–{tempo['bpm_max']:g}) |"
+        )
+    else:
+        out.append(f"| Tempo | ♩ ≈ {tempo['bpm']:g} BPM (range {tempo['bpm_min']:g}–{tempo['bpm_max']:g}) |")
     assumed = bpb == 4 and sub == 4
     out.append(f"| Time | {meter(bpb, sub)} ({'assumed' if assumed else 'set by user'}) |")
     out.append(f"| Length | {_clock(result['duration_s'])}, {len(bars)} bars |")
     if tempo.get("first_downbeat_s") is not None:
-        out.append(f"| Bar 1 starts | {_clock(tempo['first_downbeat_s'])} |")
+        pickup = tempo.get("pickup_beats") or 0
+        note = f" (bar 2; bar 1 is a {pickup}-beat pickup)" if pickup else ""
+        out.append(f"| First downbeat | {_clock(tempo['first_downbeat_s'])}{note} |")
     if sp.get("url"):
         out.append(
             f"| Spotify | [{_cell(sp.get('title'))}]({_cell(sp['url'])}) · {_cell(sp.get('album'))} "
@@ -108,7 +115,12 @@ def markdown(result: dict, meta: dict | None = None) -> str:
         out += ["## Fills and variations", ""]
         for b in variations:
             kind = "Fill" if b.get("fill") else "Variation"
-            out.append(f"### {kind}: bar {b['index']} ({_clock(b['start_s'])}), section {b.get('section')}")
+            part = b.get("partial")
+            span = ""
+            if part:
+                last = part["first_beat"] + part["beats"] - 1
+                span = f", partial: beat{'s' if part['beats'] > 1 else ''} {part['first_beat']}" + (f"–{last}" if last > part["first_beat"] else "")
+            out.append(f"### {kind}: bar {b['index']} ({_clock(b['start_s'])}{span}), section {b.get('section')}")
             out += ["", "```text", tab(b["hits"], bpb, sub, dynamics=True), "```", ""]
 
     inferred = [b["index"] for b in bars if b.get("inferred")]
@@ -135,8 +147,10 @@ def _ranges(nums: list[int]) -> str:
 def write_midi(result: dict, path: Path) -> Path:
     """Quantized GM drum track (channel 10) at the average tempo, bar 1 at tick 0.
 
-    Ticks are computed exactly for any grid; a triplet grid is written as
-    compound time (6/8, 12/8), with the dotted quarter as the beat.
+    Bars are placed by their real number of beats, with a time-signature change
+    around partial bars (pickups, stops), so the MIDI lines up with the audio
+    after a restart. Ticks are exact for any grid; a triplet grid is written in
+    compound time (6/8, 12/8) with the dotted quarter as the beat.
     """
     import mido
 
@@ -146,27 +160,36 @@ def write_midi(result: dict, path: Path) -> Path:
     compound = sub == 3
     beat_ticks = tpb * 3 // 2 if compound else tpb  # dotted quarter in compound time
     quarter_bpm = tempo["bpm"] * (1.5 if compound else 1.0)
+
+    def signature(beats):
+        num, den = (beats * 3, 8) if compound else (beats, 4)
+        return mido.MetaMessage("time_signature", numerator=num, denominator=den)
+
     mid = mido.MidiFile(ticks_per_beat=tpb)
     track = mido.MidiTrack()
     mid.tracks.append(track)
     track.append(mido.MetaMessage("track_name", name="Drums", time=0))
     track.append(mido.MetaMessage("set_tempo", tempo=mido.bpm2tempo(quarter_bpm), time=0))
-    num, den = (bpb * 3, 8) if compound else (bpb, 4)
-    track.append(mido.MetaMessage("time_signature", numerator=num, denominator=den, time=0))
-    events = []
-    for k, bar in enumerate(result["bars"]):
+    events = []  # (tick, order, message): meta before note-off before note-on
+    beat_pos, current = 0, None
+    for bar in result["bars"]:
+        part = bar.get("partial") or {}
+        first, beats = part.get("first_beat", 1), part.get("beats", bpb)
+        if beats != current:
+            events.append((round(beat_pos * beat_ticks), 0, signature(beats)))
+            current = beats
         for name, hs in bar["hits"].items():
             for st, vel in hs:
-                step = k * bpb * sub + st
-                tick = round(step * beat_ticks / sub)
-                off = round((step + 0.5) * beat_ticks / sub)
+                beat = beat_pos + st / sub - (first - 1)
+                tick = round(beat * beat_ticks)
+                off = round((beat + 0.5 / sub) * beat_ticks)
                 v = int(max(1, min(127, 40 + 87 * vel)))
-                events.append((tick, 1, GM_NOTES[name], v))
-                events.append((off, 0, GM_NOTES[name], 0))
+                events.append((tick, 2, mido.Message("note_on", channel=9, note=GM_NOTES[name], velocity=v)))
+                events.append((off, 1, mido.Message("note_off", channel=9, note=GM_NOTES[name], velocity=0)))
+        beat_pos += beats
     now = 0
-    for tick, on, note, vel in sorted(events):
-        kind = "note_on" if on else "note_off"
-        track.append(mido.Message(kind, channel=9, note=note, velocity=vel, time=tick - now))
+    for tick, _, msg in sorted(events, key=lambda e: (e[0], e[1])):
+        track.append(msg.copy(time=tick - now))
         now = tick
     track.append(mido.MetaMessage("end_of_track", time=0))
     path.parent.mkdir(parents=True, exist_ok=True)

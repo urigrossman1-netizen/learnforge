@@ -18,7 +18,9 @@ dependencies = [
 drum-agent = "drum_agent.cli:main"
 
 [tool.uv]
-# The lockfile must install from wheels on all of these (checked by `uv lock`).
+# Wheel-only, so `uv lock` fails instead of silently locking a version that would
+# need an LLVM build on one of the platforms below.
+no-build-package = ["numba", "llvmlite"]
 required-environments = [
     "sys_platform == 'darwin' and platform_machine == 'arm64'",
     "sys_platform == 'darwin' and platform_machine == 'x86_64'",

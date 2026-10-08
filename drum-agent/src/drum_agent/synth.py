@@ -18,7 +18,8 @@ GROOVE_VERSE = {"kick": [0, 7, 8], "snare": [4, 12], "hihat": _EIGHTHS}
 GROOVE_CHORUS = {"kick": [0, 3, 8, 10], "snare": [4, 12], "hihat": list(range(16))}
 FILL = {"kick": [0, 8], "snare": [4, 10, 11, 12, 13, 14, 15], "hihat": [0, 2, 4, 6, 8]}
 
-# (bars, groove) per section; the last bar of the first two sections is a fill.
+# (name, bars, groove[, steps per bar]) per section; the last bar of every
+# section but the last is a fill. A section with 8 steps per bar is in 2/4.
 FORM = [("verse", 8, GROOVE_VERSE), ("chorus", 8, GROOVE_CHORUS), ("verse", 4, GROOVE_VERSE)]
 
 
@@ -56,8 +57,9 @@ def make_song(
     rng = np.random.default_rng(seed)
     sounds = _sounds(rng)
     step = 60.0 / bpm / 4
-    bars = sum(n for _, n, _ in FORM)
-    total = lead_in + bars * 16 * step + gap + 2.5
+    form = [(f[0], f[1], f[2], f[3] if len(f) > 3 else 16) for f in FORM]
+    bars = sum(n for _, n, _, _ in form)
+    total = lead_in + sum(n * st for _, n, _, st in form) * step + gap + 2.5
     y = np.zeros(int(total * SR))
     hits: list[tuple[float, str]] = []
     sections = []
@@ -69,12 +71,15 @@ def make_song(
 
     bar = 0
     bar_starts = []
-    for si, (sec_name, n_bars, groove) in enumerate(FORM):
+    elapsed = 0  # steps since the first downbeat
+    for si, (sec_name, n_bars, groove, bar_steps) in enumerate(form):
         sections.append({"name": sec_name, "first_bar": bar + 1, "bars": n_bars})
         for b in range(n_bars):
-            is_fill = b == n_bars - 1 and si < len(FORM) - 1
+            is_fill = b == n_bars - 1 and si < len(form) - 1 and bar_steps == 16
             pattern = FILL if is_fill else groove
-            bar_start = lead_in + bar * 16 * step + (gap if si >= 1 else 0.0)
+            pattern = {d: [s for s in steps if s < bar_steps] for d, steps in pattern.items()}
+            bar_start = lead_in + elapsed * step + (gap if si >= 1 else 0.0)
+            elapsed += bar_steps
             bar_starts.append(bar_start)
             if b == 0 and bar > 0:
                 hits.append((bar_start, "crash"))

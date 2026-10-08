@@ -86,11 +86,15 @@ def acquire(meta: dict) -> dict:
     meta["title"] = meta.get("title") or ymeta.get("title")
     meta["slug"] = meta.get("slug") or config.slugify(ymeta.get("title") or ymeta.get("id") or "song")
     previous = _load_meta(meta["slug"])
-    previous_id = ((previous or {}).get("youtube") or {}).get("id")
-    if previous_id and previous_id != ymeta.get("id"):
-        meta["slug"] = f"{meta['slug']}-{ymeta.get('id')}"  # a different upload: never overwrite it
+    if previous:
+        previous_id = (previous.get("youtube") or {}).get("id")
+        own_mp3 = config.AUDIO_DIR / f"{meta['slug']}.mp3"
+        other_audio = previous.get("audio_file") and _resolve_saved(previous["audio_file"]) != own_mp3.resolve()
+        if (previous_id and previous_id != ymeta.get("id")) or (not previous_id and other_audio):
+            # A different upload or the user's own file already uses this name: never overwrite it.
+            meta["slug"] = config.slugify(f"{meta['slug']}-{ymeta.get('id') or 'yt'}")
     mp3 = audio.to_mp3(src, config.AUDIO_DIR / f"{meta['slug']}.mp3")
-    audio.to_wav(src, _wav_path(mp3))
+    _store_wav(src, _wav_path(mp3))
     src.unlink(missing_ok=True)
     meta["audio_file"] = _display_path(mp3)
     meta["acquired_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
@@ -125,15 +129,21 @@ def chart_song(
             slug = config.slugify(" - ".join(x for x in (overrides.get("artist"), overrides.get("title")) if x))
         else:
             slug = config.slugify(path.stem)
+        saved = _load_meta(slug) or {}
+        if saved.get("audio_file") and _resolve_saved(saved["audio_file"]) != path.resolve():
+            # The name belongs to other audio (e.g. the YouTube download): keep both charts.
+            slug = f"{slug}-{hashlib.sha1(str(path.resolve()).encode()).hexdigest()[:6]}"
+            saved = _load_meta(slug) or {}
     else:
         slug = str(source)
         path = _audio_for_slug(slug)
-    meta = {**(_load_meta(slug) or {}), **(meta or {}), **overrides, "slug": slug, "audio_file": _display_path(path)}
+        saved = _load_meta(slug) or {}
+    meta = {**saved, **(meta or {}), **overrides, "slug": slug, "audio_file": _display_path(path)}
 
     analysis_src = Path(drum_stem) if drum_stem else path
     wav = _wav_path(analysis_src)
     if not wav.exists():
-        audio.to_wav(analysis_src, wav)
+        _store_wav(analysis_src, wav)
 
     import soundfile as sf
 
@@ -170,10 +180,24 @@ def chart_song(
     }
 
 
+def _resolve_saved(audio_file: str) -> Path:
+    """An audio_file from meta.json as an absolute path (relative ones are project-relative)."""
+    p = Path(audio_file)
+    return (p if p.is_absolute() else config.PROJECT_DIR / p).resolve()
+
+
+def _store_wav(src: Path, wav: Path) -> None:
+    """Convert to the analysis WAV and drop older cached versions of the same file name."""
+    audio.to_wav(src, wav)
+    for old in wav.parent.glob(f"{wav.stem.rsplit('-', 1)[0]}-*.wav"):
+        if old != wav and len(old.stem) == len(wav.stem):
+            old.unlink(missing_ok=True)
+
+
 def _audio_for_slug(slug: str) -> Path:
     """The audio behind a slug: the file recorded in its meta.json, else audio/<slug>.mp3."""
     saved = (_load_meta(slug) or {}).get("audio_file")
-    candidates = [Path(saved) if Path(saved).is_absolute() else config.PROJECT_DIR / saved] if saved else []
+    candidates = [_resolve_saved(saved)] if saved else []
     candidates.append(config.AUDIO_DIR / f"{slug}.mp3")
     for c in candidates:
         if c.is_file():

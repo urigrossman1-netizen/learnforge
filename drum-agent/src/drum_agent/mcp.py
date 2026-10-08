@@ -56,8 +56,9 @@ def server_env(name: str) -> dict[str, str]:
     if name == "youtube":
         env.setdefault("YTDLP_DOWNLOADS_DIR", str(config.AUDIO_DIR / "youtube-mcp"))
         Path(env["YTDLP_DOWNLOADS_DIR"]).mkdir(parents=True, exist_ok=True)  # server refuses to start otherwise
-        if env.get("DRUM_AGENT_COOKIES_FROM_BROWSER"):
-            env.setdefault("YTDLP_COOKIES_FROM_BROWSER", env["DRUM_AGENT_COOKIES_FROM_BROWSER"])
+        spec = config.cookies_for_mcp()
+        if spec:
+            env.setdefault("YTDLP_COOKIES_FROM_BROWSER", spec)
     return env
 
 

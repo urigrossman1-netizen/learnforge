@@ -61,14 +61,18 @@ hand-annotated hits (`uv run python eval/mdb_drums.py` reproduces it):
 | | Kick F1 | Snare F1 | Hi-hat F1 | Tempo right | Bar 1 right |
 |---|---|---|---|---|---|
 | Rock/pop/funk/metal (15 songs), full mix | 0.95 | 0.77 | 0.66 | 93% | 93% |
-| Same songs, isolated drum stems | 0.97 | 0.85 | 0.85 | 93% | 93% |
+| Same songs, isolated drum stems | 0.97 | 0.85 | 0.84 | 93% | 93% |
 | All 23 incl. jazz, full mix | 0.78 | 0.67 | 0.60 | 91% | 76% |
 
 The detection thresholds were tuned on this same set, so expect somewhat lower
-scores on other music. Jazz, brushes and ride-led or swung grooves are much less
-accurate. Toms are not separated (fills show them as snare or kick), rides appear
-on the hi-hat row, and open hats and ghost notes are often missed. Check fills
-by ear, and pass `--drum-stem drums.wav` if you have an isolated drum track.
+scores on other music. Almost all MDB songs are near 110 BPM, so the tempo figure
+says little about fast songs: above roughly 150 BPM the tempo can come out at
+half speed. Pass `--bpm` when it does (the `drum-chart` skill checks for this).
+
+Jazz, brushes and ride-led or swung grooves are much less accurate. Toms are not
+separated (fills show them as snare or kick), rides appear on the hi-hat row, and
+open hats and ghost notes are often missed. Check fills by ear, and pass
+`--drum-stem drums.wav` if you have an isolated drum track.
 
 ## Notes
 
@@ -78,8 +82,8 @@ by ear, and pass `--drum-stem drums.wav` if you have an isolated drum track.
   your own practice and analysis.
 - If YouTube asks you to sign in ("confirm you're not a bot"): log in to YouTube in Firefox and
   run `uv run drum-agent setup --cookies-from-browser firefox`, then reconnect the youtube MCP
-  server in Claude Code (`/mcp`). On Windows, Chrome/Edge cookies only work with the browser
-  closed. `--cookies-from-browser none` turns it off again.
+  server in Claude Code (`/mcp`). On Windows use Firefox: yt-dlp cannot read the cookies of
+  current Chrome or Edge there. `--cookies-from-browser none` turns it off again.
 - Credentials: Spotify app keys in `drum-agent/.env`; the Spotify MCP login in
   `~/.spotify-mcp/credentials.json`. To revoke that login, delete the file and remove the app
   at https://www.spotify.com/account/apps/.
