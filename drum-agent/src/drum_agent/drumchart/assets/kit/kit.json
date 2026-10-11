@@ -1,0 +1,348 @@
+{
+ "name": "Hydrogen GMRockKit (5-piece Pearl DX, real recordings)",
+ "license": "GPL-3.0-or-later",
+ "authors": "Glen MacArthur / Sebastian Moors",
+ "source": "https://raw.githubusercontent.com/hydrogen-music/hydrogen/master/data/drumkits/GMRockKit/",
+ "samples": {
+  "kick": {
+   "pan": 0.0,
+   "layers": {
+    "soft": {
+     "file": "kick-soft.mp3",
+     "from": "Kick-Softest.wav",
+     "seconds": 0.444
+    },
+    "medium": {
+     "file": "kick-medium.mp3",
+     "from": "Kick-Med.wav",
+     "seconds": 0.439
+    },
+    "hard": {
+     "file": "kick-hard.mp3",
+     "from": "Kick-Hardest.wav",
+     "seconds": 0.439
+    }
+   }
+  },
+  "snare": {
+   "pan": -0.176,
+   "layers": {
+    "soft": {
+     "file": "snare-soft.mp3",
+     "from": "Snare-Softest.wav",
+     "seconds": 1.0
+    },
+    "medium": {
+     "file": "snare-medium.mp3",
+     "from": "Snare-Med.wav",
+     "seconds": 0.828
+    },
+    "hard": {
+     "file": "snare-hard.mp3",
+     "from": "Snare-Hardest.wav",
+     "seconds": 0.813
+    }
+   }
+  },
+  "rimshot": {
+   "pan": -0.176,
+   "layers": {
+    "soft": {
+     "file": "rimshot-soft.mp3",
+     "from": "SnareRimshot-Softest.wav",
+     "seconds": 0.798
+    },
+    "medium": {
+     "file": "rimshot-medium.mp3",
+     "from": "SnareRimshot-Med.wav",
+     "seconds": 0.783
+    },
+    "hard": {
+     "file": "rimshot-hard.mp3",
+     "from": "SnareRimshot-Hardest.wav",
+     "seconds": 0.773
+    }
+   }
+  },
+  "stick": {
+   "pan": -0.176,
+   "layers": {
+    "soft": {
+     "file": "stick-soft.mp3",
+     "from": "SideStick-Softest.wav",
+     "seconds": 0.5
+    },
+    "medium": {
+     "file": "stick-medium.mp3",
+     "from": "SideStick-Med.wav",
+     "seconds": 0.5
+    },
+    "hard": {
+     "file": "stick-hard.mp3",
+     "from": "SideStick-Hardest.wav",
+     "seconds": 0.449
+    }
+   }
+  },
+  "tom1": {
+   "pan": -0.111,
+   "layers": {
+    "soft": {
+     "file": "tom1-soft.mp3",
+     "from": "Tom1-Softest.wav",
+     "seconds": 1.98
+    },
+    "medium": {
+     "file": "tom1-medium.mp3",
+     "from": "Tom1-Med.wav",
+     "seconds": 1.921
+    },
+    "hard": {
+     "file": "tom1-hard.mp3",
+     "from": "Tom1-Hardest.wav",
+     "seconds": 1.916
+    }
+   }
+  },
+  "tom2": {
+   "pan": 0.136,
+   "layers": {
+    "soft": {
+     "file": "tom2-soft.mp3",
+     "from": "Tom2-Softest.wav",
+     "seconds": 1.98
+    },
+    "medium": {
+     "file": "tom2-medium.mp3",
+     "from": "Tom2-Med.wav",
+     "seconds": 1.966
+    },
+    "hard": {
+     "file": "tom2-hard.mp3",
+     "from": "Tom2-Hardest.wav",
+     "seconds": 1.985
+    }
+   }
+  },
+  "floor": {
+   "pan": 0.389,
+   "layers": {
+    "soft": {
+     "file": "floor-soft.mp3",
+     "from": "TomFloor-Softest.wav",
+     "seconds": 1.731
+    },
+    "medium": {
+     "file": "floor-medium.mp3",
+     "from": "TomFloor-Med.wav",
+     "seconds": 1.901
+    },
+    "hard": {
+     "file": "floor-hard.mp3",
+     "from": "TomFloor-Hardest.wav",
+     "seconds": 1.906
+    }
+   }
+  },
+  "hat": {
+   "pan": -0.351,
+   "layers": {
+    "soft": {
+     "file": "hat-soft.mp3",
+     "from": "HatClosed-Softest.wav",
+     "seconds": 0.25
+    },
+    "medium": {
+     "file": "hat-medium.mp3",
+     "from": "HatClosed-Med.wav",
+     "seconds": 0.35
+    },
+    "hard": {
+     "file": "hat-hard.mp3",
+     "from": "HatClosed-Hardest.wav",
+     "seconds": 0.35
+    }
+   }
+  },
+  "hat-open": {
+   "pan": -0.351,
+   "layers": {
+    "soft": {
+     "file": "hat-open-soft.mp3",
+     "from": "HatOpen-Softest.wav",
+     "seconds": 0.8
+    },
+    "medium": {
+     "file": "hat-open-medium.mp3",
+     "from": "HatOpen-Med.wav",
+     "seconds": 0.998
+    },
+    "hard": {
+     "file": "hat-open-hard.mp3",
+     "from": "HatOpen-Hardest.wav",
+     "seconds": 0.988
+    }
+   }
+  },
+  "hat-half": {
+   "pan": -0.351,
+   "layers": {
+    "soft": {
+     "file": "hat-half-soft.mp3",
+     "from": "HatSemiOpen-Softest.wav",
+     "seconds": 0.399
+    },
+    "medium": {
+     "file": "hat-half-medium.mp3",
+     "from": "HatSemiOpen-Med.wav",
+     "seconds": 0.549
+    },
+    "hard": {
+     "file": "hat-half-hard.mp3",
+     "from": "HatSemiOpen-Hardest.wav",
+     "seconds": 0.599
+    }
+   }
+  },
+  "hat-pedal": {
+   "pan": -0.351,
+   "layers": {
+    "soft": {
+     "file": "hat-pedal-soft.mp3",
+     "from": "HatPedal-Softest.wav",
+     "seconds": 0.349
+    },
+    "medium": {
+     "file": "hat-pedal-medium.mp3",
+     "from": "HatPedal-Med.wav",
+     "seconds": 0.35
+    },
+    "hard": {
+     "file": "hat-pedal-hard.mp3",
+     "from": "HatPedal-Hardest.wav",
+     "seconds": 0.347
+    }
+   }
+  },
+  "ride": {
+   "pan": 0.282,
+   "layers": {
+    "soft": {
+     "file": "ride-soft.mp3",
+     "from": "Ride-Softest.wav",
+     "seconds": 1.492
+    },
+    "medium": {
+     "file": "ride-medium.mp3",
+     "from": "Ride-Med.wav",
+     "seconds": 1.487
+    },
+    "hard": {
+     "file": "ride-hard.mp3",
+     "from": "Ride-Hardest.wav",
+     "seconds": 1.487
+    }
+   }
+  },
+  "ride2": {
+   "pan": 0.333,
+   "layers": {
+    "soft": {
+     "file": "ride2-soft.mp3",
+     "from": "24Ride-1.wav",
+     "seconds": 4.146
+    },
+    "medium": {
+     "file": "ride2-medium.mp3",
+     "from": "24Ride-3.wav",
+     "seconds": 6.57
+    },
+    "hard": {
+     "file": "ride2-hard.mp3",
+     "from": "24Ride-5.wav",
+     "seconds": 7.313
+    }
+   }
+  },
+  "bell": {
+   "pan": 0.282,
+   "layers": {
+    "soft": {
+     "file": "bell-soft.mp3",
+     "from": "Bell-Softest.wav",
+     "seconds": 0.998
+    },
+    "medium": {
+     "file": "bell-medium.mp3",
+     "from": "Bell-Med.wav",
+     "seconds": 1.487
+    },
+    "hard": {
+     "file": "bell-hard.mp3",
+     "from": "Bell-Hardest.wav",
+     "seconds": 1.482
+    }
+   }
+  },
+  "crash": {
+   "pan": -0.149,
+   "layers": {
+    "soft": {
+     "file": "crash-soft.mp3",
+     "from": "Crash-Softest.wav",
+     "seconds": 1.995
+    },
+    "medium": {
+     "file": "crash-medium.mp3",
+     "from": "Crash-Med.wav",
+     "seconds": 1.985
+    },
+    "hard": {
+     "file": "crash-hard.mp3",
+     "from": "Crash-Hardest.wav",
+     "seconds": 2.24
+    }
+   }
+  },
+  "splash": {
+   "pan": 0.01,
+   "layers": {
+    "soft": {
+     "file": "splash-soft.mp3",
+     "from": "Splash-Softest.wav",
+     "seconds": 2.0
+    },
+    "medium": {
+     "file": "splash-medium.mp3",
+     "from": "Splash-Med.wav",
+     "seconds": 2.18
+    },
+    "hard": {
+     "file": "splash-hard.mp3",
+     "from": "Splash-Hardest.wav",
+     "seconds": 2.175
+    }
+   }
+  },
+  "cowbell": {
+   "pan": -0.515,
+   "layers": {
+    "soft": {
+     "file": "cowbell-soft.mp3",
+     "from": "Cowbell-Softest.wav",
+     "seconds": 0.165
+    },
+    "medium": {
+     "file": "cowbell-medium.mp3",
+     "from": "Cowbell-Med.wav",
+     "seconds": 0.165
+    },
+    "hard": {
+     "file": "cowbell-hard.mp3",
+     "from": "Cowbell-Hardest.wav",
+     "seconds": 0.165
+    }
+   }
+  }
+ }
+}

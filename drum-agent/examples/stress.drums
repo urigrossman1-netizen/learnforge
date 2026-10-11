@@ -1,0 +1,87 @@
+title: Feature Stress Test
+artist: drum-charts skill
+drummer: Test Kit
+tempo: 96
+time: 4/4
+feel: Straight 8ths
+length: 1:10
+
+pattern groove
+  HH  x-x- x-x- x-x- x-x-
+  SN  ---- x--- ---- x---
+  BD  x--- --x- x--- ----
+
+pattern groove-b from groove
+  BD  x--- --x- x-x- --x-
+
+pattern ride-groove
+  RD  x-x- b-x- x-x- b-x-
+  SN  ---- c--- --c- c---
+  BD  x--x --x- x--x --x-
+  HF  ---- x--- ---- x---
+
+pattern linear
+  HH  x--- --x- ---- x---
+  SN  --g- X--g -gX- --g-
+  BD  -x-- -x-- x--x -x--
+  ST  RLR- RL-R LRR- RLRL
+
+pattern fill-6
+  SN  xxxxxx xxxxxx ---- ----
+  T1  ------ ------ xx-- ----
+  FT  ------ ------ --xx ----
+  CR  ------ ------ ---- x---
+  BD  ------ ------ ---- x---
+
+pattern hits
+  CR  X--- ---- k--- ----
+  SN  r--- ---- R--- ----
+  BD  x--- ---- x--- ----
+
+pattern shuffle time 12/8
+  RD  x-x x-x x-x x-x
+  SN  --- x-- --- x--
+  BD  x-- --x x-- ---
+
+pattern six-eight time 6/8
+  HH  x-x-x- x-x-x-
+  SN  ------ x-----
+  BD  x----- ---x--
+
+section Intro
+  mark A
+  at 0:00
+  @dyn mp
+  @cresc bars=2
+  play groove x2
+  play groove-b
+  play fill-6 @text "Fill"
+
+section Verse
+  mark B
+  at 0:10
+  confidence medium "Hi-hat openings approximated"
+  play ride-groove
+  play groove
+  play ride-groove
+  play groove
+  play linear @dyn mf
+  play linear @confidence low "Ghost notes uncertain"
+
+section Shuffle Bridge
+  mark C
+  @time 12/8
+  @tempo 64 q. Shuffle
+  play shuffle x3
+  @time 6/8
+  play six-eight x2
+  @time 4/4
+  @tempo 96
+  play hits @fermata 3 @text "Band stops"
+
+section Outro
+  mark D
+  rest 4 "Guitar alone"
+  bar @dim
+    CR x--- ---- ---- ----
+    BD x--- ---- ---- ----

@@ -64,6 +64,22 @@ def main(argv: list[str] | None = None) -> int:
     b.add_argument("--json", action="store_true")
     _chart_args(b)
 
+    rn = sub.add_parser("render", help="engrave a .drums chart into a zoomable HTML page (and PNG/PDF)")
+    rn.add_argument("chart", help="path to a .drums file")
+    rn.add_argument("-o", "--out", help="HTML file to write (default: next to the chart)")
+    rn.add_argument("--artifact", action="store_true", help="body-only HTML for publishing as a claude.ai Artifact")
+    rn.add_argument("--png", help="also save a screenshot (needs Playwright Chromium)")
+    rn.add_argument("--pdf", help="also save a print-ready PDF (needs Playwright Chromium)")
+    rn.add_argument("--paper", default="letter", choices=["letter", "a4"])
+    rn.add_argument("--width", type=int, default=1300, help="screenshot viewport width in px")
+
+    ck = sub.add_parser("check", help="validate a .drums chart and print its form and timing summary")
+    ck.add_argument("chart", help="path to a .drums file")
+
+    ex = sub.add_parser("extract", help="recover the .drums source from a rendered chart page")
+    ex.add_argument("page", help="a chart .html page made by drum-agent render")
+    ex.add_argument("-o", "--out", help=".drums file to write (default: print it)")
+
     m = sub.add_parser("mcp", help="start a third-party MCP server (used by .mcp.json)")
     m.add_argument("server", choices=["youtube", "spotify"])
 
@@ -77,6 +93,9 @@ def main(argv: list[str] | None = None) -> int:
         "chart": cmd_chart,
         "run": cmd_run,
         "batch": cmd_batch,
+        "render": cmd_render,
+        "check": cmd_check,
+        "extract": cmd_extract,
         "mcp": cmd_mcp,
     }[args.cmd](args)
 
@@ -285,6 +304,70 @@ def cmd_batch(args) -> int:
             print(f"   !! {e}", file=sys.stderr)
     _emit(args, {"results": results}, f"{len(songs) - failed}/{len(songs)} songs charted")
     return 1 if failed else 0
+
+
+def _load_chart(path: str):
+    from .drumchart import render
+
+    try:
+        chart = render.load(path)
+    except render.ChartError as e:
+        print(f"ERROR {path}: {e}", file=sys.stderr)
+        return None
+    except OSError as e:
+        print(f"ERROR {path}: {e.strerror or e}", file=sys.stderr)
+        return None
+    for w in chart.warnings:
+        print("warning:", w, file=sys.stderr)
+    print(render.summary(chart))
+    return chart
+
+
+def cmd_check(args) -> int:
+    return 0 if _load_chart(args.chart) else 2
+
+
+def cmd_render(args) -> int:
+    from .drumchart import render
+
+    chart = _load_chart(args.chart)
+    if chart is None:
+        return 2
+    source = Path(args.chart).read_text(encoding="utf-8")
+    html = render.render_html(chart, standalone=not args.artifact, source=source)
+    out = Path(args.out) if args.out else Path(args.chart).with_suffix(".html")
+    out.write_text(html, encoding="utf-8")
+    print(f"wrote {out} ({len(html) // 1024} KB)")
+    if args.png or args.pdf:
+        from .drumchart import screenshot
+
+        try:
+            if args.png:
+                screenshot.screenshot(str(out), args.png, width=args.width)
+                print(f"wrote {args.png}")
+            if args.pdf:
+                screenshot.pdf(str(out), args.pdf, paper=args.paper)
+                print(f"wrote {args.pdf}")
+        except ImportError:
+            print("PNG/PDF need Playwright: run `drum-agent setup --screenshots` once.", file=sys.stderr)
+            return 3
+    return 0
+
+
+def cmd_extract(args) -> int:
+    from .drumchart import render
+
+    source = render.extract(Path(args.page).read_text(encoding="utf-8", errors="replace"))
+    if source is None:
+        print(f"{args.page} has no embedded chart source (it was rendered before sources were embedded).",
+              file=sys.stderr)
+        return 2
+    if args.out:
+        Path(args.out).write_text(source, encoding="utf-8")
+        print(f"wrote {args.out}")
+    else:
+        sys.stdout.write(source)
+    return 0
 
 
 def cmd_mcp(args) -> int:

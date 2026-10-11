@@ -1,0 +1,81 @@
+title: Night Drive
+artist: The Test Band
+tempo: 112
+time: 4/4
+feel: Straight 8ths
+
+pattern intro-toms
+  FT  x-x- x-x- x-x- x-x-
+  SN  ---- x--- ---- x---
+  BD  x--- --x- x--- --x-
+
+pattern intro-crash from intro-toms
+  CR  x--- ---- ---- ----
+  FT  ---- x-x- x-x- x-x-
+
+pattern verse
+  HH  x-x- x-x- x-x- x-x-
+  SN  ---- x--g ---- x---
+  BD  x--- --x- x-x- ----
+
+pattern verse-crash from verse
+  CR  x--- ---- ---- ----
+  HH  ---- x-x- x-x- x-x-
+
+pattern verse-open from verse
+  HH  x-x- x-x- x-x- x-o-
+
+pattern fill-a
+  HH  x-x- x-x- ---- ----
+  SN  ---- x--- xxxx ----
+  T1  ---- ---- ---- xx--
+  FT  ---- ---- ---- --xx
+  BD  x--- --x- ---- ----
+
+pattern chorus
+  CR  x--- x--- x--- x---
+  SN  ---- x--- ---- x---
+  BD  x--- --x- x--x --x-
+
+pattern fill-b
+  CR  x--- ---- ---- ----
+  SN  ---- xxxx xx-- ----
+  T1  ---- ---- --xx ----
+  FT  ---- ---- ---- xxxx
+  BD  x--- ---- ---- ----
+
+pattern final
+  CR  x--- ---- ---- ----
+  SN  x--- ---- ---- ----
+  BD  x--- ---- ---- ----
+
+section Intro
+  play intro-crash
+  play intro-toms x3
+
+section Verse 1
+  play verse-crash
+  play verse x2
+  play verse-open
+  play verse x3
+  play fill-a
+
+section Chorus 1
+  play chorus x7
+  play fill-b
+
+section Verse 2
+  play verse-crash
+  play verse x2
+  play verse-open
+  play verse x3
+  play fill-a
+
+section Chorus 2
+  play chorus x7
+  play fill-b
+
+section Outro
+  play intro-crash
+  play intro-toms x2
+  play final
