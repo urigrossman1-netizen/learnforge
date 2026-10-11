@@ -9,6 +9,8 @@ writes a chart you can actually read:
 - a road map of the song, repeat signs, fills, dynamics and cues;
 - **zoom** that reflows the chart (4 → 2 → 1 bars per line), dark mode, print to PDF;
 - **playback with real recorded drums**, slow-down, loop a section, click, count-in;
+- **play along with your own recording**: load the song file in the page and the
+  chart follows it (click any bar to jump there); the file never leaves your device;
 - MIDI of the chart and MIDI of the performance timed like the recording;
 - honest marks on every bar the analysis is unsure about.
 
@@ -53,6 +55,9 @@ charts go to `audio/` and `charts/` here (git-ignored).
 | `drum-agent render chart.drums` | engrave a chart page (`--midi`, `--pdf`, `--png`, `--artifact`) |
 | `drum-agent check chart.drums` | validate a chart; print its form and timing against the recording |
 | `drum-agent extract chart.html` | recover the editable chart from any chart page |
+| `drum-agent bar chart.drums 12 [--set "..."]` | show or replace exactly one bar |
+| `drum-agent history` / `undo` / `redo` / `restore N` | every edit and render keeps a version |
+| `drum-agent diff draft.drums chart.drums` | what changed, bar by bar |
 | `drum-agent game-chart notes.mid` | read a Rock Band / Clone Hero chart (form, tempo map, lanes) as evidence |
 | `drum-agent search` / `fetch` / `batch` | look up, download, or run a list of songs |
 | `drum-agent setup` / `doctor` | credentials and health check |

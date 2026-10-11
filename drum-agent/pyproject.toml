@@ -31,6 +31,8 @@ required-environments = [
 
 [dependency-groups]
 dev = ["pytest>=8"]
+# PNG/PDF of chart pages: `drum-agent setup --screenshots` installs it plus Chromium.
+screenshots = ["playwright>=1.55"]
 
 [build-system]
 requires = ["hatchling"]

@@ -38,6 +38,8 @@ def main(argv: list[str] | None = None) -> int:
         "--cookies-from-browser",
         help="firefox|chrome|edge|safari|brave|... (only if YouTube asks you to sign in; 'none' clears it)",
     )
+    s.add_argument("--screenshots", action="store_true",
+                   help="also install Playwright + Chromium for PNG/PDF export (about 200 MB)")
     s.add_argument("--non-interactive", action="store_true")
 
     d = sub.add_parser("doctor", help="test YouTube, Spotify, MCP servers, ffmpeg and transcription")
@@ -83,6 +85,25 @@ def main(argv: list[str] | None = None) -> int:
     ck = sub.add_parser("check", help="validate a .drums chart and print its form and timing summary")
     ck.add_argument("chart", help="path to a .drums file")
 
+    br = sub.add_parser("bar", help="show one bar of a chart, or replace it (--set) without touching other bars")
+    br.add_argument("chart")
+    br.add_argument("number", type=int)
+    br.add_argument("--set", dest="rows", help='new rows, e.g. "HH x-x- x-x- x-x- x-o-; SN ---- x--- ---- x---"')
+
+    hi = sub.add_parser("history", help="list the saved versions of a chart (kept on every edit and render)")
+    hi.add_argument("chart")
+    for name, helptext in (("undo", "go back to the previous version of a chart"),
+                           ("redo", "go forward again after undo")):
+        u = sub.add_parser(name, help=helptext)
+        u.add_argument("chart")
+    rs = sub.add_parser("restore", help="put saved version N of a chart back (see history)")
+    rs.add_argument("chart")
+    rs.add_argument("version", type=int)
+
+    df = sub.add_parser("diff", help="list what changed between two charts, bar by bar (e.g. draft vs final)")
+    df.add_argument("old")
+    df.add_argument("new")
+
     ex = sub.add_parser("extract", help="recover the .drums source from a rendered chart page")
     ex.add_argument("page", help="a chart .html page made by drum-agent render")
     ex.add_argument("-o", "--out", help=".drums file to write (default: print it)")
@@ -108,6 +129,12 @@ def main(argv: list[str] | None = None) -> int:
         "render": cmd_render,
         "check": cmd_check,
         "extract": cmd_extract,
+        "bar": cmd_bar,
+        "history": cmd_history,
+        "undo": cmd_undo,
+        "redo": cmd_undo,
+        "restore": cmd_undo,
+        "diff": cmd_diff,
         "mcp": cmd_mcp,
     }[args.cmd](args)
 
@@ -213,10 +240,39 @@ def cmd_setup(args) -> int:
     for d in (config.AUDIO_DIR, config.CHARTS_DIR, config.CACHE_DIR):
         d.mkdir(parents=True, exist_ok=True)
     _approve_project_mcp()
+    if args.screenshots and _install_screenshots() != 0:
+        return 1
     print(f"ffmpeg  : {config.ffmpeg_exe()} (mp3 encoder: {'yes' if audio.has_mp3_encoder() else 'NO'})")
     print(f"yt-dlp  : {config.which('yt-dlp')}")
     print(f"deno    : {config.which('deno')}")
     print("\nNext: uv run drum-agent doctor")
+    return 0
+
+
+def _install_screenshots() -> int:
+    """Playwright into this environment, then its Chromium (for render --png/--pdf)."""
+    import shutil
+    import subprocess
+
+    uv = shutil.which("uv")
+    if not uv:
+        print("Installing screenshot support needs uv on PATH.", file=sys.stderr)
+        return 1
+    steps = [
+        [uv, "sync", "--project", str(config.TOOLKIT_DIR), "--frozen", "--inexact", "--group", "screenshots"],
+        [sys.executable, "-m", "playwright", "install", "chromium"],
+    ]
+    for i, cmd in enumerate(steps):
+        print("$ " + " ".join(cmd[1:] if cmd[0] == uv else ["playwright", "install", "chromium"]))
+        if subprocess.run(cmd).returncode != 0:
+            from .drumchart import screenshot
+
+            if i == 1 and screenshot._exe():
+                print(f"Using the Chromium already installed at {screenshot._exe()}.")
+                break
+            print("Screenshot support could not be installed (see above).", file=sys.stderr)
+            return 1
+    print("Screenshots: ready (drum-agent render chart.drums --png chart.png --pdf chart.pdf)")
     return 0
 
 
@@ -346,7 +402,10 @@ def cmd_render(args) -> int:
     chart = _load_chart(args.chart)
     if chart is None:
         return 2
+    from .drumchart import edit
+
     source = Path(args.chart).read_text(encoding="utf-8")
+    edit.snapshot(args.chart, source)
     html = render.render_html(chart, standalone=not args.artifact, source=source)
     out = Path(args.out) if args.out else Path(args.chart).with_suffix(".html")
     out.write_text(html, encoding="utf-8")
@@ -368,6 +427,70 @@ def cmd_render(args) -> int:
         except ImportError:
             print("PNG/PDF need Playwright: run `drum-agent setup --screenshots` once.", file=sys.stderr)
             return 3
+    return 0
+
+
+def cmd_bar(args) -> int:
+    from .drumchart import edit, render
+
+    path = Path(args.chart)
+    text = path.read_text(encoding="utf-8")
+    try:
+        if not args.rows:
+            print(edit.show_bar(text, args.number))
+            return 0
+        new = edit.set_bar(text, args.number, args.rows)
+    except (ValueError, render.ChartError) as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        return 2
+    edit.snapshot(path, text)
+    path.write_text(new, encoding="utf-8")
+    edit.snapshot(path, new)
+    print("\n".join(edit.diff(text, new)) or "no change")
+    print(edit.show_bar(new, args.number))
+    return 0
+
+
+def cmd_history(args) -> int:
+    from .drumchart import edit
+
+    vs = edit.versions(args.chart)
+    if not vs:
+        print(f"{args.chart} has no saved versions yet (they are kept on every bar edit and render).")
+        return 0
+    current = Path(args.chart).read_text(encoding="utf-8") if Path(args.chart).exists() else ""
+    here = edit._position(Path(args.chart), current)
+    for i, v in enumerate(vs, 1):
+        stamp = f"{v.name[:4]}-{v.name[4:6]}-{v.name[6:8]} {v.name[9:11]}:{v.name[11:13]}:{v.name[13:15]}"
+        print(f"{i:>3}  {stamp}{'   <- current' if here == i - 1 else ''}")
+    return 0
+
+
+def cmd_undo(args) -> int:
+    from .drumchart import edit
+
+    try:
+        if args.cmd == "restore":
+            chosen = edit.restore(args.chart, args.version)
+        else:
+            chosen = getattr(edit, args.cmd)(args.chart)
+    except (ValueError, OSError) as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        return 2
+    print(f"{args.chart} now holds saved version {edit.versions(args.chart).index(chosen) + 1}; "
+          "re-render it to update the page.")
+    return 0
+
+
+def cmd_diff(args) -> int:
+    from .drumchart import edit, render
+
+    try:
+        changes = edit.diff(Path(args.old).read_text(encoding="utf-8"), Path(args.new).read_text(encoding="utf-8"))
+    except (OSError, render.ChartError) as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        return 2
+    print("\n".join(changes) if changes else "no musical difference")
     return 0
 
 

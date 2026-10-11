@@ -482,10 +482,12 @@ JS_PLAYER = r"""
     st.loopStart=a; st.loopEnd=z;
   }
   function start(fromIdx){
+    if(rec.on&&rec.el){ if(ctx) clearInterval(st.timer); startRec(fromIdx); return }
+    if(rec.el) rec.el.pause();
     init(); if(ctx.state==='suspended') ctx.resume();
     if(!kitReady||!st.kitLoaded){playBtn.innerHTML='Loading drums…'; playBtn.disabled=true;
       loadKit().then(function(){st.kitLoaded=true; playBtn.disabled=false; start(fromIdx)}); return}
-    st.rate=parseFloat(rateSel.value)||1; st.start=fromIdx; st.cur=fromIdx; setLoop();
+    st.rate=parseFloat(rateSel.value)||1; st.start=fromIdx; st.cur=fromIdx; setLoop(); st.cur=-1;
     var last=st.loopEnd!=null?st.loopEnd:bars.length-1;
     st.ev=buildEvents(fromIdx,last); st.ei=0; st.songStart=bars[fromIdx].t;
     var lead=0.12;
@@ -495,6 +497,7 @@ JS_PLAYER = r"""
     clearInterval(st.timer); st.timer=setInterval(schedule,25); cancelAnimationFrame(st.raf); st.raf=requestAnimationFrame(frame);
   }
   function stop(){
+    if(rec.el) rec.el.pause();
     st.playing=false; clearInterval(st.timer); cancelAnimationFrame(st.raf); body.classList.remove('playing');
     playBtn.setAttribute('aria-pressed','false'); playBtn.innerHTML='&#9654; Play';
   }
@@ -506,7 +509,8 @@ JS_PLAYER = r"""
   function hlFor(n){var lay=document.querySelector('.layout.on'); return lay?lay.querySelectorAll('.hl[data-b="'+n+'"]'):[]}
   function frame(){
     if(!st.playing) return;
-    var pos=st.songStart+(ctx.currentTime-st.t0)*st.rate;
+    var pos=(rec.on&&rec.el)?toChart(rec.el.currentTime):st.songStart+(ctx.currentTime-st.t0)*st.rate;
+    if(rec.on&&rec.el&&rec.el.ended){stop(); return}
     var endIdx=st.loopEnd!=null?st.loopEnd:bars.length-1, end=bars[endIdx].t+bars[endIdx].d;
     if(pos>=end-0.005){ if(st.loopEnd!=null){start(st.loopStart); return} stop(); return }
     var i=Math.max(st.start,barIndexAt(Math.max(pos,bars[st.start].t)));
@@ -525,12 +529,40 @@ JS_PLAYER = r"""
       var ph=h.ownerSVGElement.querySelector('.ph'); ph.setAttribute('x1',x); ph.setAttribute('x2',x); ph.classList.add('on')}
     st.raf=requestAnimationFrame(frame);
   }
+  // ---- play along with the user's own recording (never uploaded: an object URL in this tab) ----
+  var rec={el:null,on:false,off:0}, secs=data.sections;
+  (function(){var prev=null; secs.forEach(function(s){var b=bars.find(function(x){return x.n===s.first}); s.c=b?b.t:0;
+      if(s.at==null) s.a=prev?prev.a+(s.c-prev.c):s.c; else s.a=s.at; prev=s});})();
+  try{rec.off=parseFloat(localStorage.getItem('drumchart.recoff.'+document.title))||0}catch(e){}
+  function toAudio(t){var s=secs[0]; secs.forEach(function(x){if(x.c<=t+1e-6) s=x}); return Math.max(0,s.a+(t-s.c)+rec.off)}
+  function toChart(a){a-=rec.off; var s=secs[0]; secs.forEach(function(x){if(x.a<=a+1e-6) s=x}); return s.c+(a-s.a)}
+  var recFile=document.getElementById('recFile'), recUse=document.getElementById('recUse');
+  var recE=document.getElementById('recEarlier'), recL=document.getElementById('recLater');
+  function nudge(d){rec.off=Math.round((rec.off+d)*10)/10; try{localStorage.setItem('drumchart.recoff.'+document.title,rec.off)}catch(e){}
+    recUse.title='Recording offset '+(rec.off>=0?'+':'')+rec.off.toFixed(1)+' s'; if(st.playing&&rec.on) start(Math.max(st.start,st.cur))}
+  recE.onclick=function(){nudge(-0.1)}; recL.onclick=function(){nudge(0.1)};
+  recFile.onchange=function(){var f=recFile.files&&recFile.files[0]; if(!f) return;
+    if(rec.el){rec.el.pause(); URL.revokeObjectURL(rec.el.src)}
+    rec.el=new Audio(URL.createObjectURL(f)); rec.el.preservesPitch=true; rec.el.mozPreservesPitch=true;
+    recUse.disabled=recE.disabled=recL.disabled=false; rec.on=true; recUse.setAttribute('aria-pressed','true');
+    recUse.textContent='Recording: '+(f.name.length>18?f.name.slice(0,17)+'…':f.name); if(st.playing) start(Math.max(st.start,st.cur))};
+  recUse.onclick=function(){if(!rec.el) return; rec.on=!rec.on; recUse.setAttribute('aria-pressed',rec.on?'true':'false');
+    if(st.playing) start(Math.max(st.start,st.cur))};
+  function startRec(fromIdx){
+    st.rate=parseFloat(rateSel.value)||1; st.start=fromIdx; st.cur=fromIdx; setLoop(); st.cur=-1;
+    rec.el.playbackRate=st.rate; rec.el.currentTime=toAudio(bars[fromIdx].t);
+    var p=rec.el.play(); if(p&&p.catch) p.catch(function(){stop()});
+    st.playing=true; body.classList.add('playing'); playBtn.setAttribute('aria-pressed','true'); playBtn.innerHTML='&#10074;&#10074; Pause';
+    clearInterval(st.timer); cancelAnimationFrame(st.raf); st.raf=requestAnimationFrame(frame);
+  }
+  window.drumchartState=function(){return {cur:st.cur,start:st.start,playing:st.playing,recording:!!(rec.on&&rec.el),
+    t:rec.on&&rec.el?rec.el.currentTime:null}};  // read-only, for automated checks
   var startIdx=0;
   function markStart(i){startIdx=i; document.querySelectorAll('.hl.start').forEach(function(x){x.classList.remove('start')});
     if(i>0) document.querySelectorAll('.hl[data-b="'+bars[i].n+'"]').forEach(function(x){x.classList.add('start')})}
   playBtn.onclick=function(){ if(st.playing) stop(); else start(startIdx) };
-  rateSel.onchange=function(){ if(st.playing) start(st.cur) };
-  clickB.addEventListener('click',function(){ if(st.playing) start(st.cur) });
+  rateSel.onchange=function(){ if(rec.on&&rec.el){rec.el.playbackRate=parseFloat(rateSel.value)||1; return} if(st.playing) start(Math.max(st.start,st.cur)) };
+  clickB.addEventListener('click',function(){ if(st.playing) start(Math.max(st.start,st.cur)) });
   document.addEventListener('keydown',function(e){ if(e.code==='Space'&&!/INPUT|TEXTAREA|SELECT|BUTTON/.test(e.target.tagName)){e.preventDefault(); playBtn.click()} });
   document.querySelectorAll('.staff-svg').forEach(function(svg){svg.addEventListener('click',function(ev){
     var pt=svg.createSVGPoint(); pt.x=ev.clientX; pt.y=ev.clientY; var p=pt.matrixTransform(svg.getScreenCTM().inverse());
@@ -591,6 +623,20 @@ def kit_json(chart: Chart) -> str:
     return json.dumps({"s": samples, "pan": pan}, separators=(",", ":"))
 
 
+def _at_seconds(at: str) -> float | None:
+    """'1:02.5' -> 62.5 (None when the section has no usable timestamp)."""
+    try:
+        parts = [float(p) for p in (at or "").split(":")]
+    except ValueError:
+        return None
+    if not parts or len(parts) > 3:
+        return None
+    sec = 0.0
+    for p in parts:
+        sec = sec * 60 + p
+    return round(sec, 3)
+
+
 def playback_json(chart: Chart) -> str:
     """Compact timing data for the in-page player: per bar start/duration, beat lengths and hits."""
     import json
@@ -609,7 +655,7 @@ def playback_json(chart: Chart) -> str:
                     hits.append([round(float(h.onset) * spw, 5), h.inst, h.art, round(D * spw / h.nslots, 5)])
             bars.append({"n": b.number, "t": round(b.start_time, 5), "d": round(sum(beats) * nb, 5),
                          "bt": beats, "r": nb, "s": si, "h": hits})
-    secs = [{"name": s.name, "first": s.bars[0].number} for s in chart.sections]
+    secs = [{"name": s.name, "first": s.bars[0].number, "at": _at_seconds(s.at)} for s in chart.sections]
     return json.dumps({"bars": bars, "sections": secs}, separators=(",", ":"))
 
 
@@ -743,6 +789,12 @@ def _render_page(chart: Chart, standalone: bool, source: str | None) -> str:
       <button id="pLoop" aria-pressed="false" title="Loop the current section">Loop</button>
       <button id="pClick" aria-pressed="false" title="Metronome click">Click</button>
       <button id="pCount" aria-pressed="true" title="One bar count-in">Count-in</button></div>
+    <div class="grp" id="recgrp"><span class="grp-label">Recording</span>
+      <label class="tog" title="Play along with your own copy of the song (it stays on this device)">
+        <input type="file" id="recFile" accept="audio/*,.mp3,.m4a,.wav,.flac,.ogg" hidden>Load song…</label>
+      <button id="recUse" aria-pressed="false" disabled title="Play the recording (on) or the drum sounds (off)">Recording</button>
+      <button id="recEarlier" disabled title="Nudge: the recording is late against the chart">−0.1 s</button>
+      <button id="recLater" disabled title="Nudge: the recording is early against the chart">+0.1 s</button></div>
     <div class="grp"><span class="grp-label">Show</span>
       <button id="tCounts" aria-pressed="true">Counts</button><button id="tGrid" aria-pressed="true">Grid</button>
       <button id="tFocus" aria-pressed="false">Focus</button></div>

@@ -109,7 +109,9 @@ only where bars are really identical.
 
 ### 7. Deliver
 Give the paths to `chart.html` (open it: zoom, play with real drum sounds,
-loop a section, slow down), `chart.mid`, the PDF if made, and where the audio is.
+loop a section, slow down; **Load song…** plays the user's own recording in sync
+with the chart, using each section's `at` time, with ±0.1 s nudges; the file never
+leaves their device), `chart.mid`, the PDF if made, and where the audio is.
 If the session can publish artifacts, publish `drum-agent render chart.drums
 --artifact -o chart.artifact.html` so it opens on any device (the page carries
 its own chart source; `drum-agent extract page.html` turns any chart page back
@@ -131,10 +133,16 @@ run `drum-agent setup --spotify-client-id ... --spotify-client-secret ...` and
 don't repeat the values.
 
 ## Editing an existing chart
-Edit the `.drums` file (or `drum-agent extract` it from a page first), keep the
-old version (`chart.v2.drums` or git), re-render, and tell the user what changed.
+Get the source (`drum-agent extract page.html -o chart.drums` for a page).
+* One bar: `drum-agent bar chart.drums 12` shows it fully resolved;
+  `drum-agent bar chart.drums 12 --set "HH x-x- x-x- x-x- x-o-; SN ---- x--- ---- x--g"`
+  replaces just that bar (it is split out of its `play ... xN` run, its marks stay).
+* Bigger changes: edit the file (patterns, sections, directives), then render.
+* Every bar edit and render keeps the previous version: `drum-agent history`,
+  `undo`, `redo`, `restore N`. `drum-agent diff draft.drums chart.drums` lists
+  every change bar by bar; use it to tell the user what you changed and why.
 User corrections are the strongest evidence: apply them exactly, drop the
-corresponding `@confidence` mark, and look for the same mistake elsewhere.
+matching `@confidence` mark, and look for the same mistake in similar bars.
 
 ## Research-only charts (no audio)
 When there is no audio: research the part (lessons, interviews, tempo databases)
