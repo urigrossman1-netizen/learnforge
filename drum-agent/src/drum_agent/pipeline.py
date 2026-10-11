@@ -118,7 +118,8 @@ def chart_song(
     `meta` is the full metadata of a song just fetched; `overrides` only
     replaces fields (title/artist) on top of what is already saved.
     """
-    from . import chart, transcribe
+    from . import draft, performance, transcribe
+    from .drumchart import render
 
     overrides = {k: v for k, v in (overrides or {}).items() if v}
     path = Path(source)
@@ -162,21 +163,27 @@ def chart_song(
     out.mkdir(parents=True, exist_ok=True)
     _save_meta(meta)
     (out / "analysis.json").write_text(json.dumps(result, indent=1), encoding="utf-8")
-    chart.write_midi(result, out / "drums.mid")
-    (out / "chart-draft.md").write_text(chart.markdown(result, meta), encoding="utf-8")
+    performance.write_midi(result, out / "performance.mid")
+    text = draft.draft_chart(result, meta, Path(meta["audio_file"]).name)
+    (out / "draft.drums").write_text(text, encoding="utf-8")
+    chart = render.parse_chart(text)
+    (out / "draft.html").write_text(render.render_html(chart, source=text), encoding="utf-8")
     return {
         "slug": slug,
         "dir": str(out),
         "files": {
+            "draft": str(out / "draft.drums"),
+            "page": str(out / "draft.html"),
             "analysis": str(out / "analysis.json"),
-            "midi": str(out / "drums.mid"),
-            "draft": str(out / "chart-draft.md"),
+            "midi": str(out / "performance.mid"),
             "audio": str(path),
         },
         "bpm": result["tempo"]["bpm"],
+        "time": draft.meter_text(result["tempo"]["beats_per_bar"], result["tempo"]["subdivision"]),
         "bars": len(result["bars"]),
         "sections": len(result["sections"]),
         "grooves": len(result["grooves"]),
+        "warnings": render.timing_warnings(chart),
     }
 
 

@@ -23,7 +23,7 @@ from dataclasses import dataclass, field
 from fractions import Fraction as Fr
 from typing import Dict, List, Optional, Tuple
 
-from .model import INSTRUMENTS, STICKING_ROW, Bar, Chart, Meter
+from .model import INSTRUMENTS, STAFF_STYLE, STICKING_ROW, Bar, Chart, Meter
 from .notation import VoiceBar, engrave_bar
 
 ASSETS = os.path.join(os.path.dirname(__file__), "assets")
@@ -517,7 +517,7 @@ def draw_bar_notation(cv: Canvas, bl: BarLayout) -> None:
             if nh.ghost:
                 cv.glyph("noteheadParenthesisLeft", xl - 0.332 - 0.05, y)
                 cv.glyph("noteheadParenthesisRight", xl + hw + 0.028 + 0.05, y)
-            if nh.choke:
+            if nh.choke and STAFF_STYLE["choke"] == "pict":
                 cv.glyph("pictChokeCymbal", xl + hw + 0.15, y - 0.35)
             if nh.flam or nh.drag:
                 _grace(cv, nh, xl, y, drag=nh.drag)
@@ -527,6 +527,11 @@ def draw_bar_notation(cv: Canvas, bl: BarLayout) -> None:
         sx = stem_x - STEM if up else stem_x
         y0, y1 = sorted((start, end))
         cv.rect(sx, y0, STEM, y1 - y0, "ink")
+        if STAFF_STYLE["choke"] == "dot" and any(nh.choke for nh, _, _ in heads):
+            # Drum Key: a choked cymbal is an X with a dot beyond the end of the stem
+            dw = gw("articStaccatoAbove")
+            cx = stem_x - STEM / 2 if up else stem_x + STEM / 2
+            cv.glyph("articStaccatoAbove", cx - dw / 2, (y0 - 0.45) if up else (y1 + 0.75))
         if any(nh.buzz for nh, _, _ in heads):
             bwid = gw("buzzRoll")
             cx = stem_x - STEM / 2 if up else stem_x + STEM / 2
@@ -618,15 +623,15 @@ def draw_bar_notation(cv: Canvas, bl: BarLayout) -> None:
         acc = any(nh.accent for nh, _, _ in g.heads)
         oc = None
         for nh, _, _ in g.heads:
-            if nh.inst != "HH":
+            if nh.inst != "HH" or (not STAFF_STYLE["open_marks"] and not nh.half_mark):
                 continue
             if nh.open:
                 oc = "pictOpen"               # every open hat is marked: an unmarked hat reads as closed
-            elif nh.half:
+            elif nh.half and nh.half_mark:
                 oc = "pictHalfOpen2"
             elif nh.closed:
                 oc = "pictOpenRimShot"
-        foot_open = any(nh.inst == "HF" and nh.open for nh, _, _ in g.heads)
+        foot_open = STAFF_STYLE["open_marks"] and any(nh.inst == "HF" and nh.open for nh, _, _ in g.heads)
         cx = g.stem_x - STEM / 2 if up else g.stem_x + STEM / 2
         if up:
             if acc:
@@ -649,7 +654,7 @@ def draw_bar_notation(cv: Canvas, bl: BarLayout) -> None:
 
     # ---------- tuplets (number on the beam side; bracket only when not beamed) ----------
     up_tups = {(t.group, t.number) for t in vb.tuplets if t.voice == "up"}
-    any_oc_up = any((nh.open or nh.half or nh.closed) and nh.inst == "HH"
+    any_oc_up = any((nh.half_mark or (STAFF_STYLE["open_marks"] and (nh.open or nh.closed))) and nh.inst == "HH"
                     for j, g in geoms.items() if vb.elems[j].voice == "up" for nh, _, _ in g.heads)
     for t in vb.tuplets:
         if t.voice == "down" and (t.group, t.number) in up_tups and not t.partial:

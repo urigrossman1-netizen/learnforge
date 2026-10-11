@@ -1,0 +1,46 @@
+title: Drum Key
+artist: drum-agent
+tempo: 80
+time: 4/4
+feel: Every instrument and technique, one per beat
+transcriber: Reference chart for the notation key (compare with the Drum Key picture)
+notes: Bar 1: china, splash, cowbell, crash. Bar 2: choked crash, ride, ride bell, closed hi-hat. Bar 3: open hi-hat, tom 1, tom 2, snare. Bar 4: ghost note, cross-stick (rim click), buzz roll, tom 3. Bar 5: floor tom, low floor tom, kick, left kick. Bar 6: hi-hat pedal, hi-hat foot splash, accent, flam.
+
+pattern cymbals
+  CH  x--- ---- ---- ----
+  SP  ---- x--- ---- ----
+  CB  ---- ---- x--- ----
+  CR  ---- ---- ---- x---
+
+pattern rides
+  CR  k--- ---- ---- ----
+  RD  ---- x--- b--- ----
+  HH  ---- ---- ---- x---
+
+pattern hats-toms
+  HH  o--- ---- ---- ----
+  T1  ---- x--- ---- ----
+  T2  ---- ---- x--- ----
+  SN  ---- ---- ---- x---
+
+pattern snare-tech
+  SN  g--- c--- z--- ----
+  T3  ---- ---- ---- x---
+
+pattern low
+  FT  x--- ---- ---- ----
+  F2  ---- x--- ---- ----
+  BD  ---- ---- x--- ----
+  B2  ---- ---- ---- x---
+
+pattern feet
+  HF  x--- o--- ---- ----
+  SN  ---- ---- X--- f---
+
+section Drum Key
+  play cymbals
+  play rides
+  play hats-toms
+  play snare-tech
+  play low
+  play feet

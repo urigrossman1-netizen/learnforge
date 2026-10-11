@@ -8,7 +8,7 @@ from typing import Dict, List
 from .engrave import (GLYPHS, Canvas, RenderedSystem, f, glyph_defs, gw, head_width, layout_chart,
                       render_system, ypos, anchor, STEM, LEDGER, LEDGER_EXT, STAFF_LINE, section_id,
                       tempo_parts, tempo_html)
-from .model import INSTRUMENTS, Chart
+from .model import INSTRUMENTS, STAFF_STYLE, Chart, staff_key
 from .notation import HEAD_OVERRIDES
 
 LAYOUTS = (4, 2, 1)
@@ -38,14 +38,14 @@ def _legend_items(chart: Chart) -> List[tuple]:
     for code in sorted(used, key=lambda c: (INSTRUMENTS[c].pos, -INSTRUMENTS[c].order)):
         items.append((code, "x", INSTRUMENTS[code].name))
     tech = [
-        ("SN", "c", "Cross-stick"), ("SN", "r", "Rimshot"), ("RD", "b", "Ride bell"), ("R2", "b", "Ride 2 bell"),
-        ("HH", "o", "Open hi-hat"), ("HH", "h", "Half-open"), ("HF", "o", "Foot splash"),
+        ("SN", "c", "Rim click (cross-stick)"), ("SN", "r", "Rimshot"), ("RD", "b", "Ride bell"), ("R2", "b", "Ride 2 bell"),
+        ("HH", "o", "Open hi-hat"), ("HH", "h", "Half-open"), ("HF", "o", "Hi-hat splash"),
     ]
     for code, a, lab in tech:
         arts = used.get(code, set())
         if a in arts or a.upper() in arts:
             items.append((code, a, lab))
-        if code == "HH" and a == "h" and arts & set("oOh"):
+        if code == "HH" and a == "h" and arts & set("oOh") and STAFF_STYLE["open_marks"]:
             items.append(("HH", "+", "Closed (after open)"))
     if any(a == "g" for arts in used.values() for a in arts):
         items.append(("SN", "g", "Ghost note"))
@@ -58,7 +58,7 @@ def _legend_items(chart: Chart) -> List[tuple]:
     if any(a == "z" for arts in used.values() for a in arts):
         items.append(("SN", "z", "Buzz roll"))
     if any(a == "k" for arts in used.values() for a in arts):
-        items.append(("CR", "k", "Choke"))
+        items.append(("CR", "k", "Choked cymbal"))
     return items
 
 
@@ -94,17 +94,21 @@ def legend_svg(code: str, art: str) -> str:
         cv.glyph("noteheadParenthesisRight", xl + hw + 0.078, y)
     if nh.flam or nh.drag:
         _grace(cv, nh, xl, y, drag=nh.drag)
-    if nh.choke:
+    if nh.choke and STAFF_STYLE["choke"] == "pict":
         cv.glyph("pictChokeCymbal", xl + hw + 0.15, y - 0.35)
     top = min(y - 3.3, -1.0)
     if up:
         cv.rect(stem_x - STEM, top, STEM, (y + ay) - top, "ink")
         if nh.buzz:
             cv.glyph("buzzRoll", stem_x - STEM / 2 - gw("buzzRoll") / 2, (y + top) / 2 + 0.45)
-        mark = "pictOpen" if (code == "HH" and nh.open) else ("pictHalfOpen2" if nh.half else None)
+        mark = "pictOpen" if (code == "HH" and nh.open and STAFF_STYLE["open_marks"]) else (
+            "pictHalfOpen2" if nh.half else None)
         if code == "HH" and art == "+":
             mark = "pictOpenRimShot"
         yy = top - 0.45
+        if nh.choke and STAFF_STYLE["choke"] == "dot":
+            cv.glyph("articStaccatoAbove", stem_x - STEM / 2 - gw("articStaccatoAbove") / 2, yy)
+            yy -= 1.0
         if nh.accent:
             cv.glyph("articAccentAbove", stem_x - STEM / 2 - gw("articAccentAbove") / 2, yy)
             yy -= 1.35
@@ -113,7 +117,7 @@ def legend_svg(code: str, art: str) -> str:
     else:
         bot = max(y + 3.3, 5.0)
         cv.rect(stem_x, y + ay, STEM, bot - (y + ay), "ink")
-        if code == "HF" and nh.open:
+        if code == "HF" and nh.open and STAFF_STYLE["open_marks"]:
             bb = GLYPHS["pictOpen"]["bbox"]
             cv.glyph("pictOpen", stem_x + STEM / 2 - gw("pictOpen") / 2, bot + 0.45 - bb[1])
     y0, y1 = min(cv.ymin, -5.2) - 0.3, max(cv.ymax, 7.2) + 0.3
@@ -624,6 +628,12 @@ def extract_source(page_html: str) -> str | None:
 
 
 def render_page(chart: Chart, standalone: bool = True, source: str | None = None) -> str:
+    """The chart page, engraved with the chart's staff key (header `notation:`, default drumkey)."""
+    with staff_key(chart.meta.get("notation")):
+        return _render_page(chart, standalone, source)
+
+
+def _render_page(chart: Chart, standalone: bool, source: str | None) -> str:
     m = chart.meta
     title = m.get("title", "Untitled")
     # render every layout

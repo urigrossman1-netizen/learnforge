@@ -94,6 +94,7 @@ class NoteHead:
     open: bool = False
     half: bool = False
     closed: bool = False     # '+' mark (set later)
+    half_mark: bool = False  # half-open sign: on the first half-open hit of a run and of each bar
     choke: bool = False
     shift: int = 0           # +1 = displaced right of the stem (seconds in up-stem chords), -1 left
 
@@ -258,9 +259,14 @@ def engrave_bar(bar: Bar, hh_state: Dict[str, bool]) -> VoiceBar:
         by_voice[I.voice].setdefault((h.group, h.slot), []).append(nh)
 
     # hi-hat open/closed marks in time order
+    first_half = True
     for key in sorted(by_voice["up"].keys()):
         for nh in by_voice["up"][key]:
             if nh.inst == "HH":
+                if nh.half:
+                    nh.half_mark = first_half or not hh_state.get("half")
+                    first_half = False
+                hh_state["half"] = nh.half
                 if nh.open or nh.half:
                     hh_state["open"] = True
                 else:

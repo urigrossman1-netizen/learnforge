@@ -6,7 +6,9 @@ import mido
 import pytest
 import soundfile as sf
 
-from drum_agent import audio, chart, cli, config, synth, transcribe, youtube
+from drum_agent import audio, cli, config, draft, performance, synth, transcribe, youtube
+from drum_agent.drumchart import midi as chart_midi
+from drum_agent.drumchart.parser import parse_chart
 
 
 @pytest.fixture(scope="module")
@@ -56,21 +58,24 @@ def test_shift_beats_moves_bar_lines(song):
                abs(first - (truth["first_downbeat_s"] - 2 * beat))) < 0.06
 
 
-def test_markdown_and_midi(result, tmp_path):
-    md = chart.markdown(result, {"title": "Test Song", "artist": "Synth Band"})
-    assert "## Road map" in md and "## Grooves" in md and "BD |" in md
-    assert "1 e & a 2 e & a 3 e & a 4 e & a" in md
-    mid = mido.MidiFile(chart.write_midi(result, tmp_path / "d.mid"))
-    notes = [m for m in mid.tracks[0] if m.type == "note_on" and m.velocity > 0]
-    assert {m.note for m in notes} >= {36, 38, 42}
-    assert all(m.channel == 9 for m in notes)
+def test_draft_chart_and_midi(result, tmp_path):
+    text = draft.draft_chart(result, {"title": "Test Song", "artist": "Synth Band"}, "song.wav")
+    chart = parse_chart(text)  # the draft is a valid chart
+    assert [s.name for s in chart.sections] == ["Part A", "Part B", "Part A 2"]
+    assert sum(1 for b in chart.bars if b.has_directive("fill")) == 2
+    assert "source-kind: audio" in text and "title: Test Song" in text
+    for mid in (mido.MidiFile(performance.write_midi(result, tmp_path / "p.mid")),
+                mido.MidiFile(chart_midi.write_midi(chart, tmp_path / "c.mid"))):
+        notes = [m for m in mid if m.type == "note_on" and m.velocity > 0]
+        assert {m.note for m in notes} >= {36, 38, 42}
+        assert all(m.channel == 9 for m in notes)
 
 
-def test_tab_dynamics():
-    text = chart.tab({"snare": [[4, 1.0], [6, 0.3]], "kick": [0]}, 4, 4, dynamics=True)
-    rows = dict(line.split(" | ", 1) for line in text.splitlines()[1:])
-    assert rows["SN"].split()[4] == "O" and rows["SN"].split()[6] == "g"
-    assert rows["BD"].split()[0] == "o"
+def test_draft_dynamics():
+    bar = {"hits": {"snare": [[4, 1.0], [6, 0.3]], "kick": [[0, 1.0]], "hihat": [[2, 1.0]]}}
+    rows = draft.bar_rows(bar, 4, 4)
+    assert rows["SN"] == "---- X-g- ---- ----"  # accent and ghost only on the snare
+    assert rows["BD"] == "x--- ---- ---- ----" and rows["HH"] == "--x- ---- ---- ----"
 
 
 def test_ffmpeg_round_trip(song, tmp_path):
@@ -100,8 +105,10 @@ def test_chart_command_on_local_file(song, tmp_path, monkeypatch, capsys):
     y, sr, _ = song
     src = tmp_path / "my-song.wav"
     sf.write(str(src), y, sr)
-    assert cli.main(["chart", str(src), "--title", "My Song", "--artist", "Me", "--json"]) == 0
+    assert cli.main(["analyze", str(src), "--title", "My Song", "--artist", "Me", "--json"]) == 0
     out = json.loads(capsys.readouterr().out)
     analysis = json.loads(open(out["files"]["analysis"]).read())
     assert analysis["source"]["title"] == "My Song"
-    assert out["bars"] == 20
+    assert out["bars"] == 20 and out["time"] == "4/4"
+    page = open(out["files"]["page"], encoding="utf-8").read()
+    assert "My Song" in page and 'id="chart-source"' in page and 'id="kit-data"' in page

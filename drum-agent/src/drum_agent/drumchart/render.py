@@ -12,7 +12,7 @@ from pathlib import Path
 from .model import Chart
 from .parser import ChartError, parse_chart
 
-__all__ = ["ChartError", "fmt", "load", "render_html", "summary", "timing_warnings"]
+__all__ = ["ChartError", "extract", "fmt", "load", "parse_chart", "render_html", "summary", "timing_warnings"]
 
 
 def fmt(sec: float) -> str:

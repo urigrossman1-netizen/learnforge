@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 import soundfile as sf
 
-from drum_agent import chart, cli, config, pipeline, synth, transcribe, youtube
+from drum_agent import cli, config, draft, performance, pipeline, synth, transcribe, youtube
 
 
 @pytest.fixture
@@ -125,7 +125,7 @@ def test_compound_meter_midi_and_header(tmp_path):
         "tempo": {"bpm": 66.0, "beats_per_bar": 2, "subdivision": 3},
         "bars": [{"hits": {"kick": [[0, 0.7]], "snare": [[3, 0.7]]}}, {"hits": {"kick": [[0, 0.7]]}}],
     }
-    mid = mido.MidiFile(chart.write_midi(result, tmp_path / "x.mid"))
+    mid = mido.MidiFile(performance.write_midi(result, tmp_path / "x.mid"))
     msgs = list(mid.tracks[0])
     sig = next(m for m in msgs if m.type == "time_signature")
     assert (sig.numerator, sig.denominator) == (6, 8)
@@ -135,7 +135,7 @@ def test_compound_meter_midi_and_header(tmp_path):
         if m.type == "note_on" and m.velocity:
             ticks.append(now)
     assert ticks == [0, 720, 1440]  # beat 1, beat 2 (dotted quarter), next bar
-    assert chart.meter(2, 3) == "6/8" and chart._clock(59.96) == "1:00.0"
+    assert draft.meter_text(2, 3) == "6/8" and draft._clock(59.96) == "1:00.0"
 
 
 # --- round 2 ---------------------------------------------------------------
@@ -159,7 +159,7 @@ def test_long_stop_sections_and_midi_alignment(tmp_path):
     chorus = r["sections"][1]
     assert chorus["fills"] and chorus["bars"] == 8  # the chorus keeps its closing fill
     # MIDI follows real bar lengths: the chorus crash lines up with the audio.
-    mid = mido.MidiFile(chart.write_midi(r, tmp_path / "s.mid"))
+    mid = mido.MidiFile(performance.write_midi(r, tmp_path / "s.mid"))
     t, crashes = 0.0, []
     for m in mid:
         t += m.time
@@ -183,7 +183,8 @@ def test_pickup_is_reported_not_negative(monkeypatch):
     assert r["tempo"]["first_downbeat_s"] >= 0
     if r["bars"][0].get("partial"):
         assert r["tempo"]["pickup_beats"] == r["bars"][0]["partial"]["beats"]
-        assert "pickup" in chart.markdown(r, {})
+        text = draft.draft_chart(r, {})
+        assert "incomplete bar" in text and "@time" in text  # the pickup is its own short, flagged bar
 
 
 def test_windows_text_encodings(tmp_path, monkeypatch):
@@ -230,8 +231,13 @@ def test_mcp_cookie_spec_drops_keyring(monkeypatch):
 
 
 def test_compound_tempo_is_a_dotted_quarter():
+    bar = {"index": 1, "start_s": 0.0, "end_s": 1.8, "hits": {"kick": [[0, 0.7]], "snare": [[3, 0.7]]}}
     result = {"tempo": {"bpm": 66.0, "bpm_min": 65.0, "bpm_max": 67.0, "beats_per_bar": 2, "subdivision": 3,
-                        "first_downbeat_s": 0.0}, "duration_s": 10.0, "bars": [], "sections": [], "grooves": {},
+                        "first_downbeat_s": 0.0}, "duration_s": 10.0, "bars": [bar], "sections": [], "grooves": {},
               "notes": []}
-    md = chart.markdown(result, {})
-    assert "♩. ≈ 66" in md and "6/8" in md
+    text = draft.draft_chart(result, {})
+    assert "tempo: 66 q." in text and "time: 6/8" in text
+    from drum_agent.drumchart.parser import parse_chart
+
+    chart = parse_chart(text)
+    assert float(chart.bars[0].tempo) == pytest.approx(99.0)  # 66 dotted quarters = 99 quarters a minute

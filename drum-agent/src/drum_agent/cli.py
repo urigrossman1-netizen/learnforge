@@ -47,7 +47,8 @@ def main(argv: list[str] | None = None) -> int:
     f = sub.add_parser("fetch", help="find a song and save its audio as audio/<slug>.mp3")
     _song_args(f)
 
-    c = sub.add_parser("chart", help="transcribe an audio file (or a fetched slug) into a drum chart")
+    c = sub.add_parser("analyze", aliases=["chart"],
+                       help="listen to an audio file (or a fetched slug) and write a draft chart")
     c.add_argument("source", help="path to an audio file you have, or a slug from audio/")
     c.add_argument("--title")
     c.add_argument("--artist")
@@ -70,6 +71,7 @@ def main(argv: list[str] | None = None) -> int:
     rn.add_argument("--artifact", action="store_true", help="body-only HTML for publishing as a claude.ai Artifact")
     rn.add_argument("--png", help="also save a screenshot (needs Playwright Chromium)")
     rn.add_argument("--pdf", help="also save a print-ready PDF (needs Playwright Chromium)")
+    rn.add_argument("--midi", help="also save the chart as a General MIDI file")
     rn.add_argument("--paper", default="letter", choices=["letter", "a4"])
     rn.add_argument("--width", type=int, default=1300, help="screenshot viewport width in px")
 
@@ -90,6 +92,7 @@ def main(argv: list[str] | None = None) -> int:
         "doctor": cmd_doctor,
         "search": cmd_search,
         "fetch": cmd_fetch,
+        "analyze": cmd_chart,
         "chart": cmd_chart,
         "run": cmd_run,
         "batch": cmd_batch,
@@ -253,9 +256,10 @@ def _chart_kwargs(args):
 
 def _chart_text(out: dict) -> str:
     return (
-        f"Chart   : {out['files']['draft']}\nMIDI    : {out['files']['midi']}\n"
-        f"Analysis: {out['files']['analysis']}\n"
-        f"Summary : {out['bpm']} BPM, {out['bars']} bars, {out['sections']} sections, {out['grooves']} grooves"
+        f"Draft   : {out['files']['draft']}\nPage    : {out['files']['page']}\n"
+        f"MIDI    : {out['files']['midi']} (timed like the recording)\nAnalysis: {out['files']['analysis']}\n"
+        f"Summary : {out['bpm']} BPM, {out['time']}, {out['bars']} bars, {out['sections']} sections, "
+        f"{out['grooves']} grooves"
     )
 
 
@@ -297,7 +301,7 @@ def cmd_batch(args) -> int:
             for w in meta.get("warnings", []):
                 if not w.startswith("Spotify credentials not set"):
                     print(f"   warning: {w}", file=sys.stderr)
-            print(f"   -> {out['files']['draft']}", file=sys.stderr)
+            print(f"   -> {out['files']['page']}", file=sys.stderr)
         except Exception as e:
             failed += 1
             results.append({"song": song, "ok": False, "error": str(e)})
@@ -338,6 +342,10 @@ def cmd_render(args) -> int:
     out = Path(args.out) if args.out else Path(args.chart).with_suffix(".html")
     out.write_text(html, encoding="utf-8")
     print(f"wrote {out} ({len(html) // 1024} KB)")
+    if args.midi:
+        from .drumchart import midi
+
+        print(f"wrote {midi.write_midi(chart, args.midi)}")
     if args.png or args.pdf:
         from .drumchart import screenshot
 

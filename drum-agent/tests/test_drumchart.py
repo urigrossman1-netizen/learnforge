@@ -21,7 +21,7 @@ def _sha(text: str) -> str:
     return hashlib.sha256(text.encode()).hexdigest()
 
 
-@pytest.mark.parametrize("name", ["stress", "night-drive"])
+@pytest.mark.parametrize("name", ["stress", "night-drive", "drum-key"])
 def test_example_pages_match_golden(name):
     """Engraving changes must be deliberate: re-record with DRUM_AGENT_UPDATE_GOLDEN=1."""
     chart = load(EXAMPLES / f"{name}.drums")
@@ -101,3 +101,36 @@ def test_page_carries_its_source_for_round_trip():
     page = render_html(parse_chart(source), source=source)
     assert extract(page) == source
     assert extract(render_html(parse_chart(source))) is None
+
+
+# Staff positions measured from the user's Drum Key picture (half-spaces above the bottom
+# line: E4 = 0 ... F5 = 8 top line, G5 = 9, A5 = 10 first ledger line, B5 = 11).
+DRUM_KEY_PICTURE = {
+    "CH": (11, "noteheadCircleX"), "SP": (11, "noteheadDiamondWhite"), "CB": (11, "noteheadTriangleUpBlack"),
+    "CR": (10, "noteheadXBlack"), "RD": (9, "noteheadXBlack"), "HH": (8, "noteheadXBlack"),
+    "T1": (7, "noteheadBlack"), "T2": (6, "noteheadBlack"), "SN": (5, "noteheadBlack"), "T3": (4, "noteheadBlack"),
+    "FT": (3, "noteheadBlack"), "F2": (2, "noteheadBlack"), "BD": (1, "noteheadBlack"), "B2": (0, "noteheadBlack"),
+    "HF": (-1, "noteheadXBlack"),
+}
+DRUM_KEY_TECHNIQUES = {("HH", "o"): "noteheadCircleX", ("HF", "o"): "noteheadCircleX",
+                       ("RD", "b"): "noteheadDiamondBlack", ("SN", "c"): "noteheadXBlack"}
+
+
+def test_default_notation_is_the_users_drum_key():
+    from drum_agent.drumchart.model import INSTRUMENTS, staff_key
+    from drum_agent.drumchart.notation import build_notehead
+
+    with staff_key():
+        assert {c: (INSTRUMENTS[c].pos, INSTRUMENTS[c].head) for c in DRUM_KEY_PICTURE} == DRUM_KEY_PICTURE
+        for (code, art), head in DRUM_KEY_TECHNIQUES.items():
+            nh = build_notehead(code, art)
+            assert (nh.pos, nh.head) == (DRUM_KEY_PICTURE[code][0], head)
+    with staff_key("pas"):
+        assert (INSTRUMENTS["HH"].pos, INSTRUMENTS["RD"].pos) == (9, 8)  # Weinberg: hi-hat above the staff
+    assert INSTRUMENTS["HH"].pos == 9  # restored after the block
+
+
+def test_unknown_notation_is_rejected():
+    chart = parse_chart((EXAMPLES / "night-drive.drums").read_text().replace("tempo:", "notation: tabs\ntempo:", 1))
+    with pytest.raises(ValueError, match="unknown notation"):
+        render_html(chart)

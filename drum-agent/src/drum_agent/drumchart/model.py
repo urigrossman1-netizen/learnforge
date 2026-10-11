@@ -1,6 +1,7 @@
 """Data model for drum charts: meters, instruments, bars, sections."""
 from __future__ import annotations
 
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from fractions import Fraction as Fr
 from typing import Dict, List, Optional
@@ -49,9 +50,67 @@ INSTRUMENTS: Dict[str, Instrument] = {i.code: i for i in [
     Instrument("FT", "Floor tom", "Floor tom", 3, "up", "noteheadBlack", "tom", _COMMON, 13),
     Instrument("F2", "Floor tom 2", "Floor 2", 2, "up", "noteheadBlack", "tom", _COMMON, 14),
     Instrument("BD", "Bass drum", "Kick", 1, "down", "noteheadBlack", "kick", "xXg", 15),
-    Instrument("B2", "Bass drum 2", "Kick 2", 0, "down", "noteheadBlack", "kick", "xXg", 16),
-    Instrument("HF", "Hi-hat foot", "HH foot", -1, "down", "noteheadXBlack", "foot", "xXo", 17),
+    Instrument("B2", "Left bass drum", "Kick 2", 0, "down", "noteheadBlack", "kick", "xXg", 16),
+    Instrument("HF", "Hi-hat pedal", "HH foot", -1, "down", "noteheadXBlack", "foot", "xXo", 17),
 ]}
+
+# ---------------------------------------------------------------------------
+# Staff keys: where each instrument sits and which notehead it uses
+# ---------------------------------------------------------------------------
+# "drumkey" (the default) follows the Drum Key picture the user gave: closed and open
+# hi-hat on the top line (F5), ride and ride bell in the space above (G5), crash on the
+# first ledger line (A5), china / splash / cowbell above it (B5), open hi-hat and hi-hat
+# splash as circled X, splash as a hollow diamond, cowbell as a filled triangle, choked
+# crash as an X with a dot. Toms, snare and kicks are the same in both keys.
+# "pas" is Weinberg's PAS layout (hi-hat in the space above the staff, ride on the top
+# line), the look of the first published charts.
+STAFF_KEYS = {
+    "drumkey": {
+        # code: (staff position, notehead, top-to-bottom order in the colour grid and legend)
+        "positions": {"TB": (12, "noteheadSquareBlack", 0), "CH": (11, "noteheadCircleX", 1),
+                      "SP": (11, "noteheadDiamondWhite", 2), "CB": (11, "noteheadTriangleUpBlack", 3),
+                      "C2": (11, "noteheadXBlack", 4), "CR": (10, "noteheadXBlack", 5),
+                      "RD": (9, "noteheadXBlack", 6), "HH": (8, "noteheadXBlack", 7)},
+        "heads": {("HH", "o"): "noteheadCircleX", ("HH", "O"): "noteheadCircleX",
+                  ("HF", "o"): "noteheadCircleX"},
+        "open_marks": False,   # open/closed shown by the notehead, not by 'o' / '+' signs
+        "choke": "dot",        # dot above the stem
+    },
+    "pas": {"positions": {}, "heads": {}, "open_marks": True, "choke": "pict"},
+}
+DEFAULT_STAFF_KEY = "drumkey"
+STAFF_STYLE = {"name": "pas", "open_marks": True, "choke": "pict"}
+_BASE_INSTRUMENTS = dict(INSTRUMENTS)
+
+
+@contextmanager
+def staff_key(name: Optional[str] = None):
+    """Engrave with the given staff key ("drumkey" or "pas"); restores the previous one after."""
+    from dataclasses import replace
+
+    from .notation import HEAD_OVERRIDES
+
+    name = (name or DEFAULT_STAFF_KEY).strip().lower()
+    if name not in STAFF_KEYS:
+        raise ValueError(f"unknown notation {name!r} (use {' or '.join(STAFF_KEYS)})")
+    key = STAFF_KEYS[name]
+    saved = (dict(INSTRUMENTS), dict(HEAD_OVERRIDES), dict(STAFF_STYLE))
+    INSTRUMENTS.clear()
+    INSTRUMENTS.update(_BASE_INSTRUMENTS)
+    for code, (pos, head, order) in key["positions"].items():
+        INSTRUMENTS[code] = replace(INSTRUMENTS[code], pos=pos, head=head, order=order)
+    HEAD_OVERRIDES.update(key["heads"])
+    STAFF_STYLE.update(name=name, open_marks=key["open_marks"], choke=key["choke"])
+    try:
+        yield
+    finally:
+        INSTRUMENTS.clear()
+        INSTRUMENTS.update(saved[0])
+        HEAD_OVERRIDES.clear()
+        HEAD_OVERRIDES.update(saved[1])
+        STAFF_STYLE.clear()
+        STAFF_STYLE.update(saved[2])
+
 
 ALIASES = {
     "C1": "CR", "CC": "CR", "CRASH": "CR", "CRASH2": "C2", "CHINA": "CH", "SPL": "SP",
