@@ -1,0 +1,9 @@
+{
+  "name": "drum-agent",
+  "description": "Drum agent: listens to a song (YouTube/Spotify lookup or your own audio file) and writes an easy-to-read, zoomable drum chart in your Drum Key notation, with real drum sounds for playback, MIDI and PDF export.",
+  "author": { "name": "urigrossman1-netizen" },
+  "homepage": "https://github.com/urigrossman1-netizen/drum-agent",
+  "repository": "https://github.com/urigrossman1-netizen/drum-agent",
+  "keywords": ["drums", "drum chart", "transcription", "notation", "music", "midi"],
+  "skills": ["./.claude/skills"]
+}

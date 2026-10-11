@@ -162,10 +162,17 @@ class StdioClient:
 
 
 def project_server(name: str) -> tuple[list[str], Path]:
-    """The command Claude Code runs for `name`, read from .mcp.json."""
-    spec = json.loads((config.PROJECT_DIR / ".mcp.json").read_text(encoding="utf-8"))["mcpServers"][name]
-    cmd = [spec["command"], *spec.get("args", [])]
+    """The command Claude Code runs for `name`, read from .mcp.json (with ${VAR:-default} expanded
+    the way Claude Code does it), and the folder it runs in."""
+    spec = json.loads((config.TOOLKIT_DIR / ".mcp.json").read_text(encoding="utf-8"))["mcpServers"][name]
+    cmd = [_expand(x) for x in [spec["command"], *spec.get("args", [])]]
     exe = shutil.which(cmd[0])
     if exe:
         cmd[0] = exe
-    return cmd, config.PROJECT_DIR
+    return cmd, config.TOOLKIT_DIR
+
+
+def _expand(text: str) -> str:
+    import re
+
+    return re.sub(r"\$\{(\w+)(?::-([^}]*))?\}", lambda m: os.environ.get(m[1]) or (m[2] or ""), text)

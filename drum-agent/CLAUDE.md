@@ -1,34 +1,48 @@
 # drum-agent
 
-Finds a song, gets its audio locally, and writes a drum chart for it.
+Listens to a song and writes its drum chart. This repo is both a Python project
+(`src/drum_agent`, CLI `drum-agent`) and a Claude Code plugin (`.claude-plugin/`,
+skills in `.claude/skills/`, launcher in `bin/`, MCP servers in `.mcp.json`).
+
+## Pipeline (one chart model)
+
+audio (user file, or YouTube via yt-dlp on the user's machine) → `transcribe.py`
+(drum hits, tempo, bars, grooves, sections, fills) → `analysis.json` →
+`draft.py` → `draft.drums` → Claude/user review → `chart.drums` →
+`drumchart/` (parse, engrave, page with zoom and real-drum playback, MIDI).
+The `.drums` text chart is the only chart model; every export comes from it.
+`performance.py` writes the detected hits as MIDI timed like the recording.
 
 ## Layout
 
-- `.mcp.json`: two maintained third-party MCP servers, started through `uv run drum-agent mcp <name>`
-  (that launcher only adds the project's yt-dlp/deno/ffmpeg to PATH and the Spotify keys from `.env`):
-  - `youtube`: [`@kevinwatt/yt-dlp-mcp`](https://github.com/kevinwatt/yt-dlp-mcp), keyless YouTube search, metadata, audio.
-  - `spotify`: [`mcp-server-spotify`](https://pypi.org/project/mcp-server-spotify/), Spotify Web API (Feb 2026 rules).
-- `src/drum_agent/`: the local pipeline, independent of the MCP servers.
-  - `spotify.py` (client-credentials search) and `youtube.py` (yt-dlp search/download)
-  - `audio.py` (ffmpeg: MP3 to keep, mono WAV to analyze), `transcribe.py` (drum transcription),
-    `chart.py` (Markdown draft + MIDI), `pipeline.py` (glue), `doctor.py` (connectivity test)
-- Outputs (git-ignored): `audio/<slug>.mp3`, `charts/<slug>/{analysis.json,chart-draft.md,drums.mid,CHART.md}`.
+- `src/drum_agent/`
+  - acquisition: `spotify.py` (metadata only), `youtube.py`, `audio.py` (ffmpeg), `pipeline.py`
+  - listening: `transcribe.py`, `synth.py` (synthetic test songs)
+  - charts: `draft.py`, `performance.py`, `drumchart/` (`parser`, `model` incl. staff keys,
+    `notation`, `engrave`, `page`, `midi`, `render`, `screenshot`, `assets/` Bravura glyphs + real drum samples)
+  - `gamechart.py` (Rock Band / Clone Hero reader), `mcp.py`, `doctor.py`, `config.py`, `cli.py`
+- `.claude/skills/drum-chart/`: the skill and its references (format, notation, transcribing, grooves)
+- `examples/`: non-commercial charts (stress test, synthetic song, the Drum Key)
+- `eval/mdb_drums.py`: accuracy on MDB Drums; `tools/build_kit.py`: rebuilds the drum samples
 
 ## Commands
 
 ```bash
-uv run drum-agent doctor                       # test everything (add --full to chart a real song)
-uv run drum-agent run "Artist - Title" --json  # search + download + chart
-uv run drum-agent chart <file-or-slug>         # chart audio you already have
-uv run drum-agent batch songs.txt              # many songs
-uv run --group dev pytest                      # tests (synthetic audio, no network)
-uv run python eval/mdb_drums.py                # accuracy on 23 annotated real recordings
+uv run drum-agent doctor                        # test everything
+uv run drum-agent run "Artist - Title" --json   # find, fetch, analyze -> draft.drums + draft.html
+uv run drum-agent analyze <file-or-slug> --json # analyze audio you have
+uv run drum-agent render chart.drums --midi chart.mid
+uv run --group dev pytest                       # tests (offline, synthetic audio)
+uv run python eval/mdb_drums.py                 # accuracy on 23 annotated recordings
+claude plugin validate .                        # plugin manifests
+DRUM_AGENT_UPDATE_GOLDEN=1 uv run --group dev pytest tests/test_drumchart.py   # after a deliberate engraving change
 ```
 
 ## Rules
 
-- For a drum chart request, follow the `drum-chart` skill.
-- Spotify is for metadata only; never try to download Spotify audio (DRM).
-- Downloaded audio is for the user's personal analysis. Keep it in `audio/`; never commit it.
-- Credentials live in `.env` (Spotify app keys, written by `uv run drum-agent setup`) and in
-  `~/.spotify-mcp/credentials.json` (the Spotify MCP's login tokens). Never read, print or commit either.
+- Never fabricate drum notes. A chart says where its notes come from (`source-kind`) and marks doubt with `@confidence`.
+- Notation follows the user's Drum Key picture (`notation: drumkey`, the default); keep `tests/test_drumchart.py` passing.
+- Playback uses real recorded drums (GMRockKit, GPL-3.0, `drumchart/assets/kit/NOTICE.md`), never synthesized drums.
+- Spotify is metadata only (DRM). YouTube audio is fetched only on the user's machine for their own use.
+- Audio, charts of commercial songs and credentials never go into git. Secrets live in
+  `~/.config/drum-agent/.env` (written by `drum-agent setup`) and `~/.spotify-mcp/`; never read or print them.

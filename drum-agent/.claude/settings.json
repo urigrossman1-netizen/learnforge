@@ -5,6 +5,8 @@
   ],
   "permissions": {
     "allow": [
+      "Bash(drum-agent:*)",
+      "Bash(bin/drum-agent:*)",
       "Bash(uv run drum-agent:*)",
       "mcp__youtube__ytdlp_search_videos",
       "mcp__youtube__ytdlp_get_video_metadata_summary",
@@ -17,7 +19,10 @@
     ],
     "deny": [
       "Read(/.env)",
-      "Edit(/.env)"
+      "Edit(/.env)",
+      "Read(~/.config/drum-agent/**)",
+      "Edit(~/.config/drum-agent/**)",
+      "Read(~/.spotify-mcp/**)"
     ]
   }
 }

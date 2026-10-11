@@ -3,7 +3,7 @@
 Copy a pattern into your chart and **adapt it to the recording**: kick
 placement, hi-hat openings, ghost notes and fills differ from song to song.
 These are textbook versions. Every block below parses as-is (tested by
-`scripts/test_grooves.py`).
+`tests/test_drumchart.py`).
 
 ## Contents
 Rock & pop · Punk & hardcore · Grunge/alt textures · Funk & R&B ·

@@ -1,0 +1,12 @@
+#!/bin/sh
+# drum-agent launcher: runs the toolkit from this folder with uv, from any working directory.
+# Claude Code puts this folder on PATH while the drum-agent plugin is enabled.
+ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+if ! command -v uv >/dev/null 2>&1; then
+  echo "drum-agent needs uv (https://docs.astral.sh/uv/). Install it with:" >&2
+  echo "  curl -LsSf https://astral.sh/uv/install.sh | sh      (macOS / Linux)" >&2
+  echo "  powershell -c \"irm https://astral.sh/uv/install.ps1 | iex\"   (Windows)" >&2
+  exit 127
+fi
+# The first run installs the Python dependencies into $ROOT/.venv (one to three minutes).
+exec uv run --quiet --frozen --project "$ROOT" drum-agent "$@"

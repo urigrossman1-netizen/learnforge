@@ -1,0 +1,12 @@
+{
+  "name": "drum-agent-tools",
+  "owner": { "name": "urigrossman1-netizen" },
+  "description": "The drum agent as a Claude Code plugin.",
+  "plugins": [
+    {
+      "name": "drum-agent",
+      "source": "./",
+      "description": "Listen to a song and write its drum chart: song lookup, local audio, drum transcription, engraved zoomable charts, MIDI."
+    }
+  ]
+}

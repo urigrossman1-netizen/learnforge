@@ -34,6 +34,8 @@ engraved notation plus a count grid. Write it top to bottom like a lead sheet.
 | `per-line` | bars per line (default 4) | `per-line: 4` |
 | `restate` | `section` (default: a groove is written once per section, then repeat signs) or `system` (rewrite it at the start of every line) | |
 | `counting` | `beats` or `eighths` for x/8 meters | |
+| `notation` | staff key: `drumkey` (default, the user's Drum Key picture) or `pas` (Weinberg/PAS: hi-hat above the staff, ride on the top line) | `notation: pas` |
+| `source-kind` | where the notes come from: `audio` (transcribed from the recording), `research` (lessons, game charts, no listening) or `generated` (a practice groove, not a song) | `source-kind: audio` |
 | `transcriber`, `source`, `notes` | printed in "About this chart" | |
 
 ## 2. Instrument rows and the grid
@@ -59,29 +61,32 @@ BD  x--- --x- x-x- ----       # kick on 1, &2, 3, &3
   the engraver picks the simplest note values automatically (a lone hit on a
   triplet downbeat becomes a plain quarter, `x-x-` becomes two 8ths).
 
-### Instrument codes (staff positions follow the PAS/Weinberg standard)
+### Instrument codes (staff positions follow the user's Drum Key)
 
-| code | instrument | staff | voice | notes |
+| code | instrument | staff (Drum Key) | voice | notes |
 |---|---|---|---|---|
-| `TB` | tambourine | D6, square | hands | rarely part of the kit |
-| `SP` | splash | C6, x | hands | |
-| `CH` | china | B5, heavy x | hands | |
-| `C2` | crash 2 | B5, x | hands | |
-| `CR` | crash (1) | A5 (ledger), x | hands | |
-| `HH` | hi-hat (sticks) | G5, x | hands | `o` open, `h` half-open |
-| `RD` | ride | F5, x | hands | `b` bell (diamond) |
-| `R2` | second ride | D5, x | hands | |
-| `CB` | cowbell | E5, triangle | hands | |
+| `TB` | tambourine | C6, square | hands | rarely part of the kit |
+| `CH` | china | B5, circled X | hands | |
+| `SP` | splash | B5, hollow diamond | hands | |
+| `CB` | cowbell | B5, filled triangle | hands | |
+| `C2` | crash 2 | B5, X | hands | |
+| `CR` | crash (1) | A5 (first ledger line), X | hands | `k` choked: X with a dot |
+| `RD` | ride | G5 (space above the staff), X | hands | `b` bell (filled diamond) |
+| `HH` | hi-hat (sticks) | F5 (top line), X | hands | `o` open (circled X), `h` half-open |
+| `R2` | second ride | D5, X | hands | |
 | `T1` | high tom | E5 | hands | |
 | `T2` | mid tom | D5 | hands | |
-| `SN` | snare | C5 | hands | `c` cross-stick, `r` rimshot |
+| `SN` | snare | C5 | hands | `c` rim click / cross-stick (X), `r` rimshot |
 | `T3` | low rack tom | B4 | hands | only for 3-rack-tom kits |
 | `FT` | floor tom | A4 | hands | |
 | `F2` | low floor tom | G4 | hands | |
-| `BD` | bass drum | F4 | feet | |
-| `B2` | 2nd bass drum | E4 | feet | for a real 2nd kick; double pedal stays `BD` |
-| `HF` | hi-hat foot | D4, x | feet | `o` = foot splash |
+| `BD` | bass drum (right foot) | F4 | feet | |
+| `B2` | left bass drum | E4 | feet | for a real 2nd kick; double pedal stays `BD` |
+| `HF` | hi-hat pedal | D4, X | feet | `o` = hi-hat splash (circled X) |
 | `ST` | sticking row | — | — | letters `R` `L` `B` (both) |
+
+With `notation: pas` the hi-hat moves to G5 and the ride to F5, china/splash/cowbell
+use the PAS heads, and open hi-hats get an "o" above (the next closed one a "+").
 
 Aliases are accepted (`SD`, `KD`, `K`, `HT`, `MT`, `LT`→floor tom, `RIDE`, `CRASH`...).
 
@@ -95,7 +100,7 @@ Aliases are accepted (`SD`, `KD`, `K`, `HT`, `MT`, `LT`→floor tom, `RIDE`, `CR
 | `f` / `F` | flam / accented flam | drums, hi-hat |
 | `d` | drag (two grace notes) | drums, hi-hat |
 | `z` | buzz roll (z on the stem; lasts until the next hit in the grid) | drums, hi-hat |
-| `o` / `O` | open hi-hat / accented open hi-hat (adds "o"; the next closed hit gets "+") | `HH` |
+| `o` / `O` | open hi-hat / accented open hi-hat (circled X; with `notation: pas` an "o" above and "+" on the next closed hit) | `HH` |
 | `h` | half-open hi-hat | `HH` |
 | `o` | foot splash | `HF` |
 | `b` / `B` | ride bell / accented bell | `RD`, `R2` |
@@ -193,13 +198,13 @@ grid still shows the hits faintly, so nothing is hidden.
 ## 8. Worked example
 
 ```
-title: Back In Black
-artist: AC/DC
-drummer: Phil Rudd
+title: Example Rock Song
+artist: The Examples
 tempo: 94
 time: 4/4
 feel: Straight 8ths
-length: 4:15
+length: 3:30
+source-kind: generated
 
 pattern main
   HH  x-x- x-x- x-x- x-x-
@@ -226,7 +231,7 @@ section Intro
 
 ## 9. Validation errors
 
-`render_chart.py --check` stops at the first problem with a line number:
+`drum-agent check song.drums` stops at the first problem with a line number:
 
 * `row has 3 beat group(s) but 4/4 needs 4` → missing or extra space between beats.
 * `beat 2 mixes incompatible subdivisions ([3, 4])` → a triplet row and a 16th row in the same beat; rewrite with the same length.

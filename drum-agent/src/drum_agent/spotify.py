@@ -16,6 +16,8 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+from . import config
+
 TOKEN_URL = "https://accounts.spotify.com/api/token"
 SEARCH_URL = "https://api.spotify.com/v1/search"
 MAX_LIMIT = 10
@@ -62,7 +64,7 @@ def _send(req: urllib.request.Request) -> dict:
         body = e.read().decode(errors="replace")[:300]
         hint = ""
         if e.code == 401 or "invalid_client" in body:
-            hint = " Check the Client ID/Secret in drum-agent/.env."
+            hint = f" Check the Client ID/Secret in {config.ENV_FILE} (run drum-agent setup)."
         elif e.code == 403:
             hint = (
                 " Spotify development-mode apps require the app owner to have"

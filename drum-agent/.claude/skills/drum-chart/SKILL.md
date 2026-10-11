@@ -1,146 +1,156 @@
 ---
 name: drum-chart
-description: Write a drum chart for a song. Finds the song on Spotify (metadata) and YouTube (audio source), acquires the audio locally, transcribes the drums, and turns the analysis into a readable chart with road map, grooves and fills. Use whenever the user asks for a drum chart, drum transcription, drum part, groove, fills or "how do I play the drums on <song>", including for several songs or a playlist.
+description: Listen to a song and write its drum chart. Finds the song (Spotify for details, YouTube or the user's own file for audio), transcribes the drums from the audio, and turns the result into an easy-to-read, zoomable, playable chart in the user's Drum Key notation (engraved staff, counts, colour hit grid, real drum sounds, MIDI, PDF). Use whenever the user asks for a drum chart, drum transcription, drum sheet music, drum notation or tab, "what does the drummer play", grooves or fills of a specific song, or to analyze an audio file's drums, even if they only name the song ("chart Lithium", "drums for Back in Black"). Also for editing, fixing, re-rendering or exporting an existing .drums chart or chart page.
 ---
 
 # Drum chart
 
-Machine analysis gives timing, bar counts and hit positions. Your job is to
-turn it into a chart a drummer can read, without inventing notes the
-analysis does not contain. Run every command from the `drum-agent/` folder.
+You produce the chart a professional transcriber would: complete (first drum
+hit to last, every fill, stop and variation), honest about what is certain,
+and easy for an intermediate drummer to read. The audio analysis hears the
+drums; you organise, check and present what it heard. **Never invent notes**:
+every hit in a chart comes from the analysis, from evidence you can name
+(research, a beat-mapped game chart, the user), or is marked uncertain.
 
-## 1. Identify the song (Spotify MCP)
+## The toolkit
 
-Call `mcp__spotify__search` with `query: "<artist> <title>"`, `types: "track"`,
-`limit: 5` (Spotify caps search at 10). It returns lines like
-`Title by Artist (ID: <id>)`. Pick the studio version that matches the request
-and call `mcp__spotify__get_track` with that ID for album, duration (M:SS) and
-URL. The release year arrives later in `run --json` (`meta.spotify.release_date`);
-for a file the user supplies, get it from
-`uv run drum-agent search "<artist> - <title>" --json` (`spotify.release_date`).
+Run everything with `drum-agent <command>`. It is on PATH when the drum-agent
+plugin is enabled. Otherwise use `${CLAUDE_SKILL_DIR}/../../../bin/drum-agent`
+(inside a checkout of the drum-agent repo; on Windows `bin\drum-agent.cmd`). If
+neither exists, install it once:
+`git clone --depth 1 https://github.com/urigrossman1-netizen/drum-agent ~/.drum-agent`
+and use `~/.drum-agent/bin/drum-agent`. It needs `uv`
+(https://docs.astral.sh/uv/); the first command installs the Python
+dependencies, which takes 1-3 minutes. Say so the first time.
 
-- The first Spotify MCP call opens a one-time browser login. If the Spotify
-  MCP is unavailable or not logged in, run
-  `uv run drum-agent search "<artist> - <title>" --json` instead (same Spotify
-  app keys, no login; it also returns the release date).
-- If neither works, continue with YouTube metadata only and say so.
+Songs and charts live in the user's library: `~/DrumAgent` (or `$DRUM_AGENT_HOME`;
+inside the drum-agent repo itself, the repo folder). Every command prints the
+paths it wrote; use those, and add `--json` when you need to parse them.
 
-## 2. Choose the audio source (YouTube MCP)
-
-Call `mcp__youtube__ytdlp_search_videos` with `query: "<artist> - <title>"`,
-`maxResults: 8`, `response_format: "json"`. Pick the upload whose duration is
-within about 3 seconds of the Spotify duration, preferring an
-`Artist - Topic` channel or an "Official Audio" upload. Avoid live, cover,
-remix, karaoke, slowed/sped-up, "drumless" and lyric videos with long intros.
-If the user supplied an audio file, skip this step and use the file.
-
-Never try to get audio from Spotify: its streams are DRM-protected.
-
-## 3. Acquire and analyze
-
-```bash
-uv run drum-agent run --title "<title>" --artist "<artist>" --duration <seconds> --url "<youtube url>" --json
-```
-
-For a file the user already has: `uv run drum-agent chart "<path>" --title "<title>" --artist "<artist>" --json`.
-For a list of songs, write one `Artist - Title` per line to a file and run
-`uv run drum-agent batch <file> --json`, then do steps 4-5 for each song.
-
-Outputs in `charts/<slug>/` (the slug is printed in the JSON): `analysis.json`
-(data), `chart-draft.md` (machine draft), `drums.mid` (General MIDI, channel
-10), `meta.json` (sources). Downloaded MP3s are in `audio/`.
-
-## 4. Sanity-check the analysis, re-run if needed
-
-Read `analysis.json`: `tempo` (including `bar_restarts`), `sections`, `grooves`
-(consensus pattern per groove), and `bars` (per-bar hits as `[step, velocity]`,
-`groove`, `fill`, `section`, and `partial` for incomplete bars). Steps count
-grid positions from 0 within the bar, so beat 1 is always step 0. With 4/4 and
-16ths: beat 2 = 4, beat 3 = 8, beat 4 = 12. With `--subdivision 3`: beat n
-starts at step 3(n-1). A typical hit has velocity 0.7; >= 0.95 is an accent,
-a snare below 0.35 is a ghost note.
-
-| Symptom | Fix (add to the same `chart` command) |
+| file | what it is |
 |---|---|
-| Tempo is half or double what the song feels like | `--bpm <correct tempo>` |
-| Main groove has the backbeat snare on 1 and 3 (rock/pop/funk) | `--shift-beats 1` (or `3` if crashes then land on beat 3) |
-| Kick only on beat 3 and crashes/fills land mid-bar | `--shift-beats 2` |
-| Song is in 3/4 | `--beats-per-bar 3` |
-| Song is in 6/8 (reported BPM = dotted-quarter pulse, 2 per bar) | `--beats-per-bar 2 --subdivision 3`; if the BPM is about 3x that (eighth notes), also `--bpm <BPM/3>` |
+| `references/format.md` | the `.drums` chart format: instruments, articulations, patterns, sections, directives. **Read before writing or editing a chart.** |
+| `references/transcribing.md` | evidence and confidence, research checklist, game charts, reading the draft, bar arithmetic, getting audio |
+| `references/notation.md` | how to notate drum things well: what to write out vs compress, hi-hat openings, fills, feels, odd meters |
+| `references/grooves.md` | correctly notated patterns for common styles, as starting points |
+
+## Workflow
+
+### 1. Pin down the job
+Song, artist, which version (album, live, remaster), and what the user wants.
+Default: the complete drum part as a chart page. If the user gave an audio
+file, that recording is the reference.
+
+### 2. Identify the song
+Spotify MCP if connected: `mcp__spotify__search` (`types: "track"`, `limit: 5`),
+then `mcp__spotify__get_track` for duration and album. The tool names may carry
+a plugin prefix (e.g. `mcp__plugin_drum-agent_spotify__search`). Without it:
+`drum-agent search "Artist - Title" --json` (also gives the release year).
+If both fail, continue with what the user said and YouTube's metadata.
+
+### 3. Get the audio
+* **The user's file** (upload, attachment, path, Google Drive download): use it.
+* **YouTube** (the user has given permission for their personal use): pick the
+  upload with the YouTube MCP (`ytdlp_search_videos`, `maxResults: 8`): duration
+  within ~3 s of Spotify's, prefer "Artist - Topic" or "Official Audio", avoid
+  live, cover, remix, karaoke, sped-up, drumless and long-intro videos. Then
+  `drum-agent run --title "<t>" --artist "<a>" --duration <s> --url "<url>" --json`.
+  Without the MCP, `drum-agent run "Artist - Title" --json` searches and ranks itself.
+* Audio stays in the user's library. Never commit, upload, publish or share it.
+  Never try Spotify audio (DRM) or piracy sites.
+* **Cloud session** (YouTube/Spotify are usually blocked there; `drum-agent
+  doctor` shows it): ask for the file (upload or Google Drive), or offer a
+  research-only chart and say clearly that it is not transcribed from the audio.
+
+For a file: `drum-agent analyze "<path>" --title "<t>" --artist "<a>" --json`.
+Many songs: one `Artist - Title` per line in a file, `drum-agent batch <file> --json`.
+
+### 4. Check the analysis, re-run if needed
+Open `draft.drums` (and `analysis.json` for details). Fix the grid first, by
+re-running `drum-agent analyze <slug> <flags> --json` (no new download):
+
+| symptom | add |
+|---|---|
+| tempo is half or double what the song feels like | `--bpm <right tempo>` |
+| backbeat snare on 1 and 3 in a rock/pop/funk groove | `--shift-beats 1` (or `3` if crashes then land on beat 3) |
+| kick only on beat 3, crashes and fills land mid-bar | `--shift-beats 2` |
+| the song is in 3/4 | `--beats-per-bar 3` |
+| 6/8 (reported BPM = dotted-quarter pulse, 2 per bar) | `--beats-per-bar 2 --subdivision 3` (if the BPM is ~3x that, also `--bpm <BPM/3>`) |
 | 12/8 or a shuffle: hats and kicks smear across `e` and `a` | `--beats-per-bar 4 --subdivision 3` |
-| User has an isolated drum track | `--drum-stem <file>` |
+| the user has an isolated drum track | `--drum-stem <file>` |
 
-Re-run without downloading again: `uv run drum-agent chart <slug> <flags> --json`
-(this works for fetched songs and for files the user gave you; saved Spotify
-and YouTube details are kept). Use your knowledge of the song to judge feel
-and form, but take bar counts, tempo and hit positions from the analysis.
+Use your knowledge of the song only to *check* tempo, meter and form against the
+analysis, never to replace detected notes.
 
-## 5. Write `charts/<slug>/CHART.md`
+### 5. Write the chart
+Copy `draft.drums` to `chart.drums` in the same folder and improve it (details in
+`references/transcribing.md` §7):
+* Section names (Intro, Verse 1, Chorus 1, ...) where the structure, energy and
+  research support them; otherwise keep Part A / Part B. Same letter = same material.
+* Merge patterns that differ only by detection noise; keep every real variation
+  as its own pattern (a repeat sign must mean "exactly the previous bar").
+* Add what the machine cannot hear only with evidence, and mark it:
+  toms in fills, ride vs hi-hat, open hats, cross-stick, bell, chokes, flams,
+  ghost notes, sticking → `@confidence medium "lesson + game chart"`.
+* Keep every `@confidence` the analysis set unless you resolved it (say how in a
+  `note`). Keep `source-kind: audio` and the transcriber line truthful.
+* Cues every few bars naming musical events (vocals in, guitar riff, band stops,
+  solo), never lyrics. Dynamics at section changes. Fills marked `@fill`.
 
-Use this structure. Keep tabs exactly as the analysis gives them; mark
-anything you inferred or that the analysis flags (`inferred`, `partial`,
-low-velocity notes, one-off bars) as "check by ear". The meter in the header
-comes from the draft (`4/4`, `3/4`, `6/8`, `12/8`).
-
-````markdown
-# <Title> — <Artist>
-<Album> (<year>) · ♩ = <bpm> (♩. = <bpm> in 6/8 or 12/8) · <meter> · <feel: straight 8ths / 16ths / shuffle / half-time> · <length>
-
-## Road map
-| Section | Bars | Starts | Groove | Notes |
-|---|---|---|---|---|
-| Intro | 1–4 (4) | 0:00 | A | crash on 1; hat only first 2 bars |
-| Verse 1 | 5–20 (16) | 0:09 | A | fill bar 20 |
-| Chorus | 21–28 (8) | 0:44 | B | crash every 4 bars |
-...
-
-## Grooves
-### A — Verse groove
-<one sentence: hat pattern, kick placement, backbeat, anything notable>
-```text
-     1 e & a 2 e & a 3 e & a 4 e & a
-HH | x . x . x . x . x . x . x . x . |
-SN | . . . . o . . . . . . . o . . . |
-BD | o . . . . . o . o . . . . . . . |
+### 6. Render, check, look
 ```
-
-## Fills
-### Bar 20 → Chorus
-```text
-...
+drum-agent render chart.drums --midi chart.mid      # chart.html + form/timing summary
+drum-agent render chart.drums --pdf chart.pdf --png chart.png   # needs Playwright Chromium
 ```
+Fix every error (they give the line and the fix). Compare the summary with the
+recording: total length, and section starts vs `at` times (it warns at > 4 s).
+If you can, look at the PNG: fills readable, nothing colliding, repeat signs
+only where bars are really identical.
 
-## Performance notes
-- Dynamics, crash placement, stops/breaks, feel, count-in.
-- What to verify by ear (toms, ghost notes, open hats, ride, anything flagged).
+### 7. Deliver
+Give the paths to `chart.html` (open it: zoom, play with real drum sounds,
+loop a section, slow down), `chart.mid`, the PDF if made, and where the audio is.
+If the session can publish artifacts, publish `drum-agent render chart.drums
+--artifact -o chart.artifact.html` so it opens on any device (the page carries
+its own chart source; `drum-agent extract page.html` turns any chart page back
+into an editable chart). In a cloud session copy the deliverables into the
+user's project or publish them, since the container is temporary.
+In your message: tempo, meter and form in one line; what is solid; what is marked
+uncertain and why; what to check by ear. Never say you "listened" to a song you
+charted from research only.
 
-Legend: x cymbal · o drum · X/O accent · g ghost · . rest
-````
+## Setting up
+When the user asks to set up the drum agent, or a command reports something
+missing: run `drum-agent setup --non-interactive`, then `drum-agent doctor`, and
+report the result in plain words. Spotify keys are optional. To add them, give
+the user the exact command for their own terminal (`command -v drum-agent` shows
+the launcher's full path; on Windows `bin\drum-agent.cmd` in the plugin folder)
+followed by ` setup`: it explains where to get the keys and stores them outside
+every repository. Don't ask the user to paste keys into the chat; if they do,
+run `drum-agent setup --spotify-client-id ... --spotify-client-secret ...` and
+don't repeat the values.
 
-Section names (Intro/Verse/Pre-chorus/Chorus/Bridge/Solo/Outro): use the
-section `label` (same letter = same material), position in the song,
-`energy_db` (louder + crashes usually = chorus) and your knowledge of the
-song. If unsure, keep the letter and say so. A bar count restart
-(`bar_restarts` > 0) usually marks a stop or break: write it in the road map.
+## Editing an existing chart
+Edit the `.drums` file (or `drum-agent extract` it from a page first), keep the
+old version (`chart.v2.drums` or git), re-render, and tell the user what changed.
+User corrections are the strongest evidence: apply them exactly, drop the
+corresponding `@confidence` mark, and look for the same mistake elsewhere.
 
-## 6. Report back
+## Research-only charts (no audio)
+When there is no audio: research the part (lessons, interviews, tempo databases)
+and look for a beat-mapped rhythm-game chart (`references/transcribing.md` §2,
+`drum-agent game-chart notes.mid --form`). Write `source-kind: research`, a
+transcriber line "Charted from research ... not transcribed from the recording",
+and confidence marks everywhere evidence is thin. Never copy published
+transcriptions or game files; write the part in your own notation.
 
-Give the paths to `CHART.md`, `drums.mid` and the MP3, the tempo and form in
-one or two lines, and what the user should double-check by ear. If a command
-failed, run `uv run drum-agent doctor` and report its result instead of guessing.
-
-## Limits to state when relevant
-
-- Toms are not separated, with or without a stem: fills show toms as snare or
-  kick. Ride patterns appear on the HH row. Open hats and ghost notes are often
-  missed. On a full mix, bass notes can add kicks and guitars can add snares;
-  a drum stem (`--drum-stem`) helps with both.
-- Jazz, brushes and ride-led or swung grooves are much less accurate than
-  rock, pop, funk and metal.
-- Audio is for the user's own practice and analysis: it stays in `audio/`
-  (git-ignored). Do not commit or share it.
-- If YouTube answers "Sign in to confirm you're not a bot", run
-  `uv run drum-agent setup --cookies-from-browser firefox` (the user must be
-  logged in to YouTube in Firefox; on Windows yt-dlp cannot read Chrome or
-  Edge cookies), then reconnect the youtube MCP server (`/mcp`) before
-  searching again. `drum-agent run` picks it up immediately.
+## Honesty and limits
+* Grade evidence: high = clear in the analysis or several sources agree;
+  medium = one source or partial evidence; low = educated guess. Marked bars get
+  a dashed outline and a note on the page.
+* The built-in analysis hears kick, snare, hi-hat/ride and crash. It does not
+  separate toms, puts the ride on the hi-hat row, rarely hears open hats and misses
+  most ghost notes; jazz, brushes and swing are much less accurate. Say so when it
+  matters, and suggest a drum stem.
+* Lyrics are off-limits in charts, notes, queries and replies.
+* If a command fails, run `drum-agent doctor` and report its result instead of guessing.

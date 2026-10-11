@@ -6,11 +6,11 @@ How to find out what the drummer actually plays, with or without the audio.
 1. Evidence and confidence
 2. Research checklist (always)
 3. The listening pipeline (when you have audio)
-4. Reading the hit maps and bars.txt
+4. Reading the draft against the recording
 5. Form, tempo and bar arithmetic
 6. Section-by-section checklist
 7. From draft to finished chart
-8. Getting audio (and what not to do)
+8. Getting audio
 
 ---
 
@@ -25,7 +25,7 @@ alone is enough:
 | Wikipedia, album credits | version, drummer, length, recording facts | the part itself |
 | lessons (Drumeo, YouTube lesson pages, drum magazines), transcription previews (Musicnotes, Hal Leonard, Songsterr) | groove per section, famous fills | bar-exact form, small variations |
 | drummer interviews | intent, kit, technique | details |
-| audio analysis (this skill) | exact tempo map, bar lines, form, kick/snare/hat rhythm, crashes, where fills are | ghost notes under loud guitars, tom pitch, ride vs. crash, hi-hat openness |
+| audio analysis (`drum-agent analyze`) | tempo, bar lines, form, kick/snare/hat rhythm, crashes, where fills are | toms, ride vs. hi-hat, hi-hat openness, ghost notes |
 
 Confidence per section/bar: **high** = audio shows it clearly or several
 sources agree; **medium** = one source or partial evidence; **low** = guess.
@@ -62,12 +62,12 @@ map, section markers, bar counts and the rhythm of every bar**. How to find one:
 * check the version: titles like "(Live at Reading)" or "(Rerecorded)" are not
   the album. A live chart can still confirm groove shapes; say so in the chart.
 
-Read it with `scripts/game_chart.py`:
+Read it with `drum-agent game-chart`:
 ```
-python scripts/game_chart.py notes.mid --form           # sections, bars, start time, avg BPM
-python scripts/game_chart.py notes.mid --bars 40-48     # lanes per bar, .drums-style beat groups
-python scripts/game_chart.py notes.mid --anim --bars 47 # hands, crash 1/2, ride, hi-hat open, flams
-python scripts/game_chart.py notes.mid --offset -3.0    # shift times to the album clock
+drum-agent game-chart notes.mid --form           # sections, bars, start time, avg BPM
+drum-agent game-chart notes.mid --bars 40-48     # lanes per bar, .drums-style beat groups
+drum-agent game-chart notes.mid --anim --bars 47 # hands, crash 1/2, ride, hi-hat open, flams
+drum-agent game-chart notes.mid --offset -3.0    # shift times to the album clock
 ```
 Lanes: `KICK SNARE`, cymbals `Y-CYM` (hi-hat) `B-CYM` (ride) `G-CYM` (crash),
 toms `Y-TOM` (high) `B-TOM` (mid) `G-TOM` (floor). Charters bend the lanes: in
@@ -95,84 +95,49 @@ write (notes, charts, queries, replies). Prefer lesson videos over covers and
 play-throughs, which are mostly lyrics.
 
 ## 3. The listening pipeline (when you have audio)
-Install once (CPU is fine; ~2 GB with the CPU torch wheel, ~6 GB when only the regular PyPI wheel is reachable):
 ```
-bash scripts/setup_audio.sh          # creates .venv-audio with demucs, beat_this, madmom, ADTOF, librosa
+drum-agent analyze song.mp3 --title "Title" --artist "Artist" --json      # a file you have
+drum-agent run --title "Title" --artist "Artist" --url "<youtube url>" --json   # fetch + analyze
 ```
-Run:
-```
-.venv-audio/bin/python scripts/analyze_audio.py song.mp3 --out work/ --bpm 117 --title "Lithium" --artist "Nirvana"
-```
-* `--bpm` (from research) prevents double/half-time beat tracking.
-* `--meter 6/8` (or 3/4, 12/8...) if the song isn't in 4/4. For songs that
-  change meter, analyse the sections separately with `--start/--end`.
-* `--drumsep` additionally splits the drum stem into kick/snare/toms/hi-hat/
-  ride/crash. It is **very slow on CPU (~2–3× the audio length)**: only use
-  it on a short passage (`--start 1:52 --end 2:10`) when ride vs. crash or a
-  tom fill is genuinely unclear — never on a whole song.
-* Runtime on a 4-core CPU: about 1–3 minutes per minute of audio, mostly
-  demucs. Run one heavy audio job at a time; parallel torch jobs crawl.
+* `--bpm 117` when the detected tempo is half or double what the song feels like
+  (research or the snare placement decides; see the SKILL's fix table).
+* `--beats-per-bar 3` for 3/4; `--beats-per-bar 2 --subdivision 3` for 6/8;
+  `--beats-per-bar 4 --subdivision 3` for 12/8 or a triplet shuffle.
+* `--shift-beats N` when beat 1 is in the wrong place (backbeat on 1 and 3).
+* `--drum-stem drums.wav` when the user has an isolated drum track: much better.
+* Re-run on the same song without downloading again: `drum-agent analyze <slug> ...`.
 
-Outputs (in `work/`): `report.md`, `bars.txt`, `activations.txt`,
-`draft.drums`, `maps/*.png`, `analysis.json`, `drums.wav`.
-Toms are split by pitch automatically (report: "toms: split by pitch: FT ~105
-Hz, T1 ~144 Hz"); check the assignment in fills. `activations.txt` shows the
-detector's confidence at every grid slot even below its threshold — the best
-place to find ghost notes (snare-row 1–3s between backbeats) and quiet hits.
+What it writes in `charts/<slug>/` (the JSON output lists the paths):
+* `draft.drums`: the detection as an editable chart (one pattern per distinct bar,
+  repeats collapsed, sections Part A / Part B / Part A 2 by sound, fills marked,
+  doubtful bars carrying `@confidence` with the reason). Read it like a chart.
+* `draft.html`: that draft engraved; open it, look at it, play it.
+* `analysis.json`: tempo (`bpm`, `bpm_min/max`, `bar_restarts`), `bars` (per-bar
+  hits as `[step, velocity]` on the grid, `groove`, `fill`, `partial`, `inferred`),
+  `grooves` (consensus patterns), `sections` (`label`, `energy_db`, `crash_bars`).
+* `performance.mid`: the detected hits timed like the recording, for a DAW.
 
-What to expect from the automatic draft, before any correction (F1 per
-instrument family):
+What the built-in detector hears (measured on MDB Drums, 23 real recordings with
+hand-annotated hits; rock/pop/funk/metal subset, full mix): kick F1 0.95, snare
+0.77, hi-hat 0.66; tempo right 93%, bar 1 right 93%. Jazz, brushes and swung
+ride grooves are much weaker. It does not separate toms (they show up as snare or
+kick in fills), puts the ride on the hi-hat row, rarely hears hi-hat openings and
+misses most ghost notes. So: trust the kick/snare/hat rhythm and the form; check
+every fill, every crash and every section start by ear or against research.
 
-| test | kick | snare | hi-hat | cymbals | toms | overall | ghosts found |
-|---|---|---|---|---|---|---|---|
-| 40-bar test song, real acoustic-kit samples, full mix | 0.94 | 0.92 | 1.00 | 0.99 | 0.99 | 0.98 | 7 % |
-| 23 real multitrack recordings (MDB Drums), demucs stem | 0.86 | 0.62 | 0.88 | 0.42 | 0.42 | 0.79 | ~5 % |
-
-Tempo, bar lines and the section form were exact on the test song. On real
-records: trust kick/hi-hat/crash rhythms, check snare carefully, **check every
-fill for toms** (often missed or called kick/snare), and add ghost notes
-yourself — the detector's `?` candidates catch most of them but are mostly
-false alarms (≈25 % precision), so confirm each one in the spectrogram and
-against lessons. Treat hi-hat openings as hints.
-
-## 4. Reading the hit maps and bars.txt
-**maps/map_NNN-MMM.png** — 4 bars per image:
-* Top: spectrogram of the drum stem. Kick = bright blob at the very bottom.
-  Snare = vertical stripe through the middle (bright 150–400 Hz + noise up
-  high). Toms = shorter blobs at 80–300 Hz with a pitch you can see (higher tom
-  = higher blob). Closed hi-hat = thin short ticks at the top. Open hi-hat /
-  crash = high-band smear that lasts (crash longest and broadest, with a strong
-  attack across all bands). Ride = regular ticks at the top with a continuous
-  shimmer between them; bell = a narrow bright line in the middle-high range.
-* Bottom: detected hits on lanes, on the bar/beat/subdivision grid. Marker
-  size and opacity = loudness. Diamonds = hi-hats flagged as open.
-* Check: is every spectrogram stripe a dot? Is every dot a real stripe?
-  Fills show up as dense dots on the snare/tom lanes just before a blue barline.
-
-**bars.txt** — the same per bar as text, one row per class, beats separated
-by spaces, digits = loudness 1–9 relative to that instrument (1–3 ghost
-range, 8–9 accents), `o` = open hi-hat:
-```
-bar  17  0:33.41   117.3 bpm  [B1]
-   CR  9--- ---- ---- ----
-   HH  ---- 6-5- 6-5- 6-5-
-   SN  ---- 9--2 ---- 9---
-   BD  8--- --7- 8-7- ----
-```
-Use it to decide each bar's pattern precisely, then confirm on the image.
-
-Typical machine errors and how to spot them:
-* **Snare ghost notes missed** under distorted guitars: look for faint snare
-  stripes in the spectrogram between backbeats; check lessons.
-* **Floor tom labelled kick** (or vice versa): floor-tom blobs sit higher and
-  ring longer; in fills, low hits between snare hits are usually floor tom.
-* **Crash labelled hi-hat open** or ride: crash smear covers almost the whole
-  height and lasts > 1 s.
-* **Flams merged** into one hit: a flam looks like a slightly doubled stripe.
-* **Hi-hat 8ths vs. 16ths**: count hat ticks over two beats in the image.
-* **Bar line off by one beat** (downbeat phase wrong): the backbeat snare
-  should be on beats 2 & 4; if it's on 1 & 3 everywhere, shift the bars.
-* Grid fit in `report.md` > 6% of a beat = loose playing or wrong tempo/meter.
+## 4. Reading the draft against the recording
+* Steps count grid positions from 0 within the bar, so beat 1 is step 0; with
+  16ths, beat 2 = 4, beat 3 = 8, beat 4 = 12; with a triplet grid beat n starts
+  at step 3(n-1). A typical hit has velocity 0.7; ≥ 0.95 is an accent; a snare
+  below 0.35 is a ghost note (only the snare's loudness is written as dynamics).
+* Same letter = same material: Part A and Part A 2 sound alike (groove, energy,
+  harmony). Decide what they are (verse, chorus...) from the structure, the energy
+  (`energy_db`, crashes) and research; until then keep the neutral name.
+* `inferred` hi-hats were restored under the snare (the snare hides them);
+  `partial` bars are where the count restarts (a stop, a pickup, a 2/4 bar).
+* Typical machine errors: a floor tom heard as kick, high toms heard as snare,
+  a crash heard as an accented hat, flams merged into one hit, 8th vs 16th hats
+  confused under distortion, the bar line one or two beats off after a stop.
 
 ## 5. Form, tempo and bar arithmetic
 * bars = seconds × BPM ÷ 60 ÷ beats per bar. At 120 BPM in 4/4 a bar is 2.0 s.
@@ -180,8 +145,8 @@ Typical machine errors and how to spot them:
   the spectrogram texture changes, crashes land, and fills end.
 * Sections are usually 4, 8, 12 or 16 bars. Odd lengths do happen (2-bar
   extensions, a 2/4 bar, pickups, a riff of 6) — confirm them in the map.
-* `render_chart.py` prints each section's computed start time; give every
-  section `at m:ss` from the recording and fix any drift > 4 s it reports.
+* `drum-agent check chart.drums` prints each section's computed start time; give
+  every section `at m:ss` from the recording and fix any drift > 4 s it reports.
 
 ## 6. Section-by-section checklist
 For each section, decide and write down:
@@ -199,22 +164,30 @@ For each section, decide and write down:
 9. Cues: where vocals/guitar enter, stops, solos (musical events, not lyrics).
 
 ## 7. From draft to finished chart
-`draft.drums` has one pattern per distinct detected bar (p1, p2, ...) and
-sections A1, B1, A2... from the automatic form. To finish it:
-1. Rename sections (Intro, Verse 1, Chorus 1...) and fix boundaries.
-2. Merge patterns that differ only by detection noise (a stray hat, a
-   missing ghost note) into the true pattern — but keep real variations.
+`draft.drums` has one pattern per distinct detected bar (`groove-a`, `groove-a-2`,
+`fill`, ...) and sections Part A, Part B, Part A 2 from the automatic form. To finish it,
+copy it to `chart.drums` and:
+1. Name sections (Intro, Verse 1, Chorus 1...) only with evidence (structure,
+   energy, research); otherwise keep the neutral name. Fix boundaries.
+2. Merge patterns that differ only by detection noise (a stray hat, a missing
+   ghost note) into the true pattern, but keep real variations.
 3. Rename patterns musically (`verse`, `verse-fill`, `chorus-crash`).
-4. Add what the machine can't: cross-stick vs. snare, ride bell, chokes,
-   flams, tom identities, open-hat lengths, sticking for fills.
-5. Add cues, dynamics, section notes, `confidence`.
-6. Render, compare the timing summary with the recording, look at the PNG.
+4. Add what the machine can't hear, from evidence: tom identities in fills,
+   ride vs hi-hat, open hats, cross-stick, ride bell, chokes, flams, ghost
+   notes, sticking. Mark each such addition `@confidence medium|low "why"`
+   unless several sources agree.
+5. Add cues, dynamics, section notes and `confidence`. Never delete a flag
+   the analysis raised without saying why in a note.
+6. Render, compare the timing summary with the recording, look at the page.
 
-## 8. Getting audio (and what not to do)
-* Use audio the user gives you (an upload or a file path), or audio they
-  legitimately own or license. Official 30-second previews are fine for a
-  quick tempo/groove check where reachable.
-* Don't download songs from YouTube rippers or piracy sites, even if a tool
-  could; ask the user for the file instead.
-* No audio → chart from research, mark confidence honestly, and offer to refine
-  the chart when the user provides the recording.
+## 8. Getting audio
+* Best: a file the user gives you (upload, attachment, path, Google Drive).
+* With the user's permission, `drum-agent fetch`/`run` saves the song from YouTube
+  on the user's own machine for their personal practice and analysis. The audio
+  stays in their library folder (`audio/`): never commit, upload, publish or share it.
+* Spotify is for song details only; its audio is DRM-protected. Never use piracy
+  sites or "stream rippers".
+* Cloud sessions usually cannot reach YouTube or Spotify. Ask the user to upload
+  the file (or put it in Google Drive), or to run the agent on their own computer.
+* No audio at all → chart from research (`source-kind: research`), say so on the
+  chart and in your reply, and offer to refine it when they provide the recording.

@@ -17,12 +17,17 @@ Spotify credentials (for song metadata). One-time setup, about 2 minutes:
   2. Click "Create app". Name: drum-agent. Redirect URI: http://127.0.0.1:8888/callback
      (type it exactly, then click Add). Tick "Web API". Save.
   3. Open the app -> Settings. Copy "Client ID", click "View client secret", copy it.
-Paste them below (input is stored only in drum-agent/.env, which git ignores).
+Paste them below (stored only in your user config folder, never in a repository).
 Press Enter to skip; YouTube search and audio still work without Spotify.
 """
 
 
 def main(argv: list[str] | None = None) -> int:
+    argv = sys.argv[1:] if argv is None else argv
+    if argv[:1] == ["game-chart"]:  # its own options, help included
+        from . import gamechart
+
+        return gamechart.main(argv[1:]) or 0
     p = argparse.ArgumentParser(prog="drum-agent", description=__doc__)
     sub = p.add_subparsers(dest="cmd", required=True)
 
@@ -81,6 +86,10 @@ def main(argv: list[str] | None = None) -> int:
     ex = sub.add_parser("extract", help="recover the .drums source from a rendered chart page")
     ex.add_argument("page", help="a chart .html page made by drum-agent render")
     ex.add_argument("-o", "--out", help=".drums file to write (default: print it)")
+
+    gc = sub.add_parser("game-chart", add_help=False,
+                        help="read a Rock Band / Clone Hero drum chart (form, tempo map, lanes per bar) as evidence")
+    gc.add_argument("rest", nargs=argparse.REMAINDER)
 
     m = sub.add_parser("mcp", help="start a third-party MCP server (used by .mcp.json)")
     m.add_argument("server", choices=["youtube", "spotify"])
@@ -166,7 +175,7 @@ def cmd_setup(args) -> int:
     cid, secret = args.spotify_client_id, args.spotify_client_secret
     if not (cid or secret) and not args.non_interactive and sys.stdin.isatty():
         if env.get("SPOTIFY_CLIENT_ID") and env.get("SPOTIFY_CLIENT_SECRET"):
-            print("Spotify credentials already stored in drum-agent/.env "
+            print(f"Spotify credentials already stored in {config.ENV_FILE} "
                   "(pass --spotify-client-id/--spotify-client-secret to replace them).")
         else:
             print(SPOTIFY_HELP)
@@ -213,14 +222,14 @@ def cmd_setup(args) -> int:
 
 def _approve_project_mcp() -> None:
     """Pre-approve this project's .mcp.json servers for your own Claude Code (local, git-ignored)."""
-    path = config.PROJECT_DIR / ".claude" / "settings.local.json"
+    path = config.TOOLKIT_DIR / ".claude" / "settings.local.json"
     data = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
-    servers = json.loads((config.PROJECT_DIR / ".mcp.json").read_text(encoding="utf-8"))["mcpServers"]
+    servers = json.loads((config.TOOLKIT_DIR / ".mcp.json").read_text(encoding="utf-8"))["mcpServers"]
     enabled = data.setdefault("enabledMcpjsonServers", [])
     enabled += [name for name in servers if name not in enabled]
     path.parent.mkdir(exist_ok=True)
     path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
-    print(f"Claude Code: MCP servers {', '.join(enabled)} approved in {path.relative_to(config.PROJECT_DIR)}")
+    print(f"Claude Code: MCP servers {', '.join(enabled)} approved in {path}")
 
 
 def cmd_doctor(args) -> int:

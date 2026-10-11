@@ -10,11 +10,38 @@ import sys
 import unicodedata
 from pathlib import Path
 
-PROJECT_DIR = Path(__file__).resolve().parents[2]
-ENV_FILE = PROJECT_DIR / ".env"
-AUDIO_DIR = PROJECT_DIR / "audio"
-CHARTS_DIR = PROJECT_DIR / "charts"
-CACHE_DIR = PROJECT_DIR / ".cache"
+# The toolkit: this checkout (or the installed Claude Code plugin), read-only in use.
+TOOLKIT_DIR = Path(__file__).resolve().parents[2]
+
+
+def _home_dir() -> Path:
+    """Where songs and charts live: $DRUM_AGENT_HOME; a git checkout of the toolkit keeps
+    them inside itself (git-ignored); an installed plugin uses ~/DrumAgent, which survives
+    plugin updates and is shared by every project."""
+    if os.environ.get("DRUM_AGENT_HOME"):
+        return Path(os.environ["DRUM_AGENT_HOME"]).expanduser()
+    if (TOOLKIT_DIR / ".git").exists():
+        return TOOLKIT_DIR
+    return Path.home() / "DrumAgent"
+
+
+def _config_dir() -> Path:
+    if os.environ.get("DRUM_AGENT_CONFIG"):
+        return Path(os.environ["DRUM_AGENT_CONFIG"]).expanduser()
+    if os.name == "nt" and os.environ.get("APPDATA"):
+        return Path(os.environ["APPDATA"]) / "drum-agent"
+    return Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "drum-agent"
+
+
+HOME_DIR = _home_dir()
+PROJECT_DIR = HOME_DIR  # paths saved in meta.json are relative to this
+AUDIO_DIR = HOME_DIR / "audio"
+CHARTS_DIR = HOME_DIR / "charts"
+CACHE_DIR = HOME_DIR / ".cache"
+# Secrets (Spotify app keys, cookie choice) live outside every repository.
+CONFIG_DIR = _config_dir()
+ENV_FILE = CONFIG_DIR / ".env"
+LEGACY_ENV_FILE = TOOLKIT_DIR / ".env"  # where versions before the plugin kept them
 
 # Pinned versions of the third-party MCP servers (see .mcp.json).
 YOUTUBE_MCP_PACKAGE = "@kevinwatt/yt-dlp-mcp@0.10.0"
@@ -45,8 +72,12 @@ def read_text_any(path: Path) -> str:
         return raw.decode(locale.getpreferredencoding(False) or "cp1252", errors="replace")
 
 
-def load_env(path: Path = ENV_FILE) -> None:
-    """Load KEY=VALUE lines from .env without overriding the real environment."""
+def load_env(path: Path | None = None) -> None:
+    """Load KEY=VALUE lines from the .env file(s) without overriding the real environment."""
+    if path is None:
+        for p in (ENV_FILE, LEGACY_ENV_FILE):
+            load_env(p)
+        return
     if not path.exists():
         return
     for line in read_text_any(path).splitlines():
@@ -59,8 +90,10 @@ def load_env(path: Path = ENV_FILE) -> None:
             os.environ.setdefault(key.strip(), value)
 
 
-def write_env(updates: dict[str, str], path: Path = ENV_FILE) -> None:
-    """Merge updates into .env, keeping unrelated lines, and restrict permissions."""
+def write_env(updates: dict[str, str], path: Path | None = None) -> None:
+    """Merge updates into the .env file, keeping unrelated lines, and restrict permissions."""
+    path = path or ENV_FILE
+    path.parent.mkdir(parents=True, exist_ok=True)
     lines = read_text_any(path).splitlines() if path.exists() else []
     remaining = dict(updates)
     out = []
