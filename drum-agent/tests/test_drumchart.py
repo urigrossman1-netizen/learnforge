@@ -68,9 +68,10 @@ def _gallery(md: str) -> str:
     return "\n".join(out)
 
 
-def test_groove_library_parses_and_renders():
-    chart = parse_chart(_gallery((REFERENCES / "grooves.md").read_text(encoding="utf-8")))
-    assert len(chart.patterns) >= 30
+@pytest.mark.parametrize("name, at_least", [("grooves.md", 40), ("rudiments.md", 10)])
+def test_groove_libraries_parse_and_render(name, at_least):
+    chart = parse_chart(_gallery((REFERENCES / name).read_text(encoding="utf-8")))
+    assert len(chart.patterns) >= at_least
     assert "<svg" in render_html(chart)
 
 
@@ -134,3 +135,30 @@ def test_unknown_notation_is_rejected():
     chart = parse_chart((EXAMPLES / "night-drive.drums").read_text().replace("tempo:", "notation: tabs\ntempo:", 1))
     with pytest.raises(ValueError, match="unknown notation"):
         render_html(chart)
+
+
+def test_playability_flags_what_no_drummer_can_play():
+    from drum_agent.drumchart.playability import check
+
+    text = """title: T
+tempo: 100
+time: 4/4
+
+pattern bad
+  CR  x--- ---- ---- ----
+  HH  x--- ---- o--- ----
+  SN  x--- ---- ---- ----
+  HF  ---- x--- x--- ----
+  B2  ---- x--- ---- ----
+  ST  ---- ---- ---- R---
+
+section A
+  play bad
+"""
+    problems = check(parse_chart(text))
+    assert any("three hands" in p and "beat 1" in p for p in problems)
+    assert any("left foot" in p and "beat 2" in p for p in problems)
+    assert any("open hi-hat" in p and "beat 3" in p for p in problems)
+    assert any("sticking" in p and "beat 4" in p for p in problems)
+    for name in ("night-drive", "drum-key", "stress"):
+        assert not [p for p in check(load(EXAMPLES / f"{name}.drums")) if "three hands" in p], name

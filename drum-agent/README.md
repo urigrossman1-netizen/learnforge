@@ -36,7 +36,12 @@ and paste the two keys when it asks. Then ask:
 Write a drum chart for "Another One Bites the Dust" by Queen
 Chart the drums of ~/Music/our-demo.wav
 Make the chorus fill in chart.drums a 16th-note tom run and re-render it
+Write me a funk groove with ghost notes at 95 BPM, then add a fill every 4th bar
+Give me a paradiddle exercise with sticking
 ```
+
+Two skills come with it: **drum-chart** (the drums of a song, from its audio)
+and **drum-groove** (practice grooves, fills and rudiments in any style).
 
 **Claude Code in the cloud** (claude.ai/code or a cloud session in the app):
 add the `drum-agent` repository in the repo picker next to your project. The
@@ -61,6 +66,7 @@ charts go to `audio/` and `charts/` here (git-ignored).
 | `drum-agent game-chart notes.mid` | read a Rock Band / Clone Hero chart (form, tempo map, lanes) as evidence |
 | `drum-agent search` / `fetch` / `batch` | look up, download, or run a list of songs |
 | `drum-agent setup` / `doctor` | credentials and health check |
+| `drum-agent root` | where the toolkit (and its references) is installed |
 
 Charts are plain text (`.drums`), written like a lead sheet; see
 [`.claude/skills/drum-chart/references/format.md`](.claude/skills/drum-chart/references/format.md).

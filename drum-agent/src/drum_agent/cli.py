@@ -104,6 +104,8 @@ def main(argv: list[str] | None = None) -> int:
     df.add_argument("old")
     df.add_argument("new")
 
+    sub.add_parser("root", help="print where the toolkit is installed (its references and examples are there)")
+
     ex = sub.add_parser("extract", help="recover the .drums source from a rendered chart page")
     ex.add_argument("page", help="a chart .html page made by drum-agent render")
     ex.add_argument("-o", "--out", help=".drums file to write (default: print it)")
@@ -144,6 +146,7 @@ def _dispatch(args) -> int:
         "render": cmd_render,
         "check": cmd_check,
         "extract": cmd_extract,
+        "root": lambda a: print(config.TOOLKIT_DIR) or 0,
         "bar": cmd_bar,
         "history": cmd_history,
         "undo": cmd_undo,
@@ -404,6 +407,10 @@ def _load_chart(path: str):
     for w in chart.warnings:
         print("warning:", w, file=sys.stderr)
     print(render.summary(chart))
+    from .drumchart import playability
+
+    for p in playability.check(chart):
+        print("playability:", p)
     return chart
 
 

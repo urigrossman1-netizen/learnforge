@@ -7,7 +7,7 @@ These are textbook versions. Every block below parses as-is (tested by
 
 ## Contents
 Rock & pop · Punk & hardcore · Grunge/alt textures · Funk & R&B ·
-Shuffles & swing · Latin & reggae · Compound & odd meters · Fills · Endings
+Shuffles & swing · Latin & reggae · Compound & odd meters · Electronic, hip-hop & metal · Fills · Endings
 
 ---
 
@@ -200,6 +200,65 @@ pattern five-four time 5/4
   HH  x-x- x-x- x-x- x-x- x-x-
   SN  ---- ---- x--- ---- x---
   BD  x--- --x- ---- x--- ----
+```
+
+## Electronic, hip-hop & metal
+
+Typical tempos in brackets; play them on the acoustic kit.
+
+```
+# House (118-130): four on the floor, open hat on the "&", closed hat on the "a"
+pattern house
+  HH  --ox --ox --ox --ox
+  SN  ---- X--- ---- X---
+  BD  x--- x--- x--- x---
+
+# Boom-bap hip-hop (80-98): laid-back backbeat, kick on 1, "&" of 2 and "&" of 3
+pattern boom-bap
+  HH  x-x- x-x- x-x- x-x-
+  SN  ---- X--- ---- X---
+  BD  x--- --x- --x- ----
+
+# Trap-style half time (130-160): snare on 3, a 16th hat burst on 4
+pattern trap
+  HH  x-x- x-x- x-x- xxxx
+  SN  ---- ---- X--- ----
+  BD  x--- ---- --x- ----
+
+# Drum & bass two-step (160-180)
+pattern dnb-two-step
+  HH  x-x- x-x- x-x- x-x-
+  SN  ---- X--- ---- X---
+  BD  x--- ---- --x- ----
+
+# Reggae steppers (60-90): kick on every beat, cross-stick on 3
+pattern reggae-steppers
+  HH  x-x- x-x- x-x- x-x-
+  SN  ---- ---- c--- ----
+  BD  x--- x--- x--- x---
+
+# Double-bass metal (110-200): 16th kicks (double pedal) under a ride
+pattern double-bass
+  RD  x-x- x-x- x-x- x-x-
+  SN  ---- X--- ---- X---
+  BD  xxxx xxxx xxxx xxxx
+
+# Waltz in 3/4 (90-180): kick on 1, snare on 2 and 3
+pattern waltz time 3/4
+  HH  x-x- x-x- x-x-
+  SN  ---- x--- x---
+  BD  x--- ---- ----
+
+# Slow blues in 12/8 (48-72): all twelve 8ths on the hat
+pattern slow-blues time 12/8
+  HH  xxx xxx xxx xxx
+  SN  --- X-- --- X--
+  BD  x-- --- x-- ---
+
+# Jazz swing in 12/8 (100-220): "ding, ding-a-ding" on the ride, hi-hat foot on 2 & 4
+pattern jazz-ride-128 time 12/8
+  RD  x-- x-x x-- x-x
+  HF  --- x-- --- x--
 ```
 
 ## Fills
