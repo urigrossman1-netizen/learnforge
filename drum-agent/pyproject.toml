@@ -1,6 +1,6 @@
 [project]
 name = "drum-agent"
-version = "0.1.0"
+version = "0.2.0"
 description = "Find a song (YouTube + Spotify), acquire its audio locally, and transcribe the drums into a chart."
 readme = "README.md"
 requires-python = ">=3.12"

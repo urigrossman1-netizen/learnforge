@@ -121,8 +121,11 @@ def chart_song(
     from . import draft, performance, transcribe
     from .drumchart import render
 
+    job = Job()
     overrides = {k: v for k, v in (overrides or {}).items() if v}
     path = Path(source)
+    if not path.is_file() and (path.suffix or "/" in str(source) or "\\" in str(source)):
+        audio.inspect(path)  # a path that does not exist: say so plainly
     if path.is_file():
         if meta and meta.get("slug"):
             slug = meta["slug"]
@@ -142,13 +145,7 @@ def chart_song(
     meta = {**saved, **(meta or {}), **overrides, "slug": slug, "audio_file": _display_path(path)}
 
     analysis_src = Path(drum_stem) if drum_stem else path
-    wav = _wav_path(analysis_src)
-    if not wav.exists():
-        _store_wav(analysis_src, wav)
-
-    import soundfile as sf
-
-    y, sr = sf.read(str(wav), dtype="float32")
+    out = config.CHARTS_DIR / slug
     opts = transcribe.Options(
         bpm=bpm,
         beats_per_bar=beats_per_bar,
@@ -156,18 +153,45 @@ def chart_song(
         is_drum_stem=bool(drum_stem),
         shift_beats=shift_beats,
     )
-    result = transcribe.transcribe(y, sr, opts)
+    job.start(out, audio_file=meta["audio_file"], drum_stem=str(drum_stem) if drum_stem else None,
+              options={k: v for k, v in vars(opts).items()})
+    try:
+        with job.stage("check audio"):
+            info = audio.inspect(analysis_src)
+        with job.stage("decode"):
+            wav = _wav_path(analysis_src)
+            if not wav.exists():
+                _store_wav(analysis_src, wav)
+            import soundfile as sf
+
+            y, sr = sf.read(str(wav), dtype="float32")
+            audio.check_levels(y, info["warnings"])
+        with job.stage("transcribe"):
+            result = transcribe.transcribe(y, sr, opts)
+    except Exception as e:
+        job.fail(e)
+        raise
+    result["input"] = info
+    result["notes"] = [f"Input: {w}." for w in info["warnings"]] + list(result.get("notes") or [])
+    result["engine"] = engine_version()
     result["source"] = {k: v for k, v in meta.items() if k != "warnings"}
 
-    out = config.CHARTS_DIR / slug
     out.mkdir(parents=True, exist_ok=True)
-    _save_meta(meta)
-    (out / "analysis.json").write_text(json.dumps(result, indent=1), encoding="utf-8")
-    performance.write_midi(result, out / "performance.mid")
-    text = draft.draft_chart(result, meta, Path(meta["audio_file"]).name)
-    (out / "draft.drums").write_text(text, encoding="utf-8")
-    chart = render.parse_chart(text)
-    (out / "draft.html").write_text(render.render_html(chart, source=text), encoding="utf-8")
+    try:
+        with job.stage("write chart"):
+            _save_meta(meta)
+            (out / "analysis.json").write_text(json.dumps(result, indent=1), encoding="utf-8")
+            performance.write_midi(result, out / "performance.mid")
+            text = draft.draft_chart(result, meta, Path(meta["audio_file"]).name)
+            (out / "draft.drums").write_text(text, encoding="utf-8")
+            chart = render.parse_chart(text)
+        with job.stage("render page"):
+            (out / "draft.html").write_text(render.render_html(chart, source=text), encoding="utf-8")
+    except Exception as e:
+        job.fail(e)
+        raise
+    job.done(bpm=result["tempo"]["bpm"], bars=len(result["bars"]), warnings=info["warnings"],
+             outputs=["meta.json", "analysis.json", "performance.mid", "draft.drums", "draft.html"])
     return {
         "slug": slug,
         "dir": str(out),
@@ -185,6 +209,77 @@ def chart_song(
         "grooves": len(result["grooves"]),
         "warnings": render.timing_warnings(chart),
     }
+
+
+class Job:
+    """charts/<slug>/job.json: what ran, how long each stage took, with which engine, and where it
+    failed. Written after every stage, so a crash still leaves an accurate record."""
+
+    def __init__(self):
+        self.path: Path | None = None
+        self.data: dict = {}
+
+    def start(self, out: Path, **info) -> None:
+        import time
+
+        self.path = out / "job.json"
+        self.data = {"status": "running", "started": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                     "engine": engine_version(), **info, "stages": []}
+        self._write()
+
+    def stage(self, name: str):
+        import contextlib
+        import time
+
+        @contextlib.contextmanager
+        def run():
+            t0 = time.perf_counter()
+            entry = {"stage": name, "status": "running"}
+            self.data.setdefault("stages", []).append(entry)
+            self._write()
+            try:
+                yield
+            except Exception:
+                entry.update(status="failed", seconds=round(time.perf_counter() - t0, 2))
+                raise
+            entry.update(status="done", seconds=round(time.perf_counter() - t0, 2))
+            self._write()
+
+        return run()
+
+    def fail(self, error: Exception) -> None:
+        self.data.update(status="failed", error=f"{type(error).__name__}: {error}")
+        self._write()
+
+    def done(self, **info) -> None:
+        import time
+
+        self.data.update(status="done", finished=time.strftime("%Y-%m-%dT%H:%M:%S"), **info)
+        self._write()
+
+    def _write(self) -> None:
+        if self.path:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            self.path.write_text(json.dumps(self.data, indent=1), encoding="utf-8")
+
+
+def engine_version() -> str:
+    """drum-agent version (+ git commit of the toolkit when it is a checkout)."""
+    import subprocess
+    from importlib.metadata import PackageNotFoundError, version
+
+    try:
+        v = version("drum-agent")
+    except PackageNotFoundError:
+        v = "unknown"
+    try:
+        rev = subprocess.run(["git", "-C", str(config.TOOLKIT_DIR), "rev-parse", "--short", "HEAD"],
+                             capture_output=True, text=True, timeout=5)
+        if rev.returncode == 0 and rev.stdout.strip():
+            v += f"+{rev.stdout.strip()}"
+    except (OSError, subprocess.SubprocessError):
+        pass
+    return f"drum-agent {v} (built-in signal-processing transcriber)"
 
 
 def _resolve_saved(audio_file: str) -> Path:

@@ -117,6 +117,21 @@ def main(argv: list[str] | None = None) -> int:
 
     args = p.parse_args(argv)
     config.load_env()
+    try:
+        return _dispatch(args)
+    except KeyboardInterrupt:
+        print("stopped.", file=sys.stderr)
+        return 130
+    except Exception as e:  # one clear line for the user; DRUM_AGENT_DEBUG=1 shows the traceback
+        if config.os.environ.get("DRUM_AGENT_DEBUG"):
+            raise
+        print(f"error: {e}", file=sys.stderr)
+        if not isinstance(e, (ValueError, FileNotFoundError)):
+            print("       (run `drum-agent doctor` to check the setup; DRUM_AGENT_DEBUG=1 for details)", file=sys.stderr)
+        return 2
+
+
+def _dispatch(args) -> int:
     return {
         "setup": cmd_setup,
         "doctor": cmd_doctor,
