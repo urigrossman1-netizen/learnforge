@@ -9,3 +9,6 @@ __pycache__/
 *.egg-info/
 # Per-user Claude Code settings written by `drum-agent setup`
 .claude/settings.local.json
+
+# chart version history written by `drum-agent render`/`bar --set`
+.history/

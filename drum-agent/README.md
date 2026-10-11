@@ -99,6 +99,12 @@ those bars and checks fills against research. Every chart says how it was made.
 - If YouTube asks you to sign in ("confirm you're not a bot"), log in to YouTube in
   Firefox and run `drum-agent setup --cookies-from-browser firefox`.
 
+## More
+
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): how the pieces fit together.
+- [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md): what was asked for, and its status.
+- [docs/HISTORY.md](docs/HISTORY.md): how the earlier drum chats became this repo.
+
 ## Credits
 
 - Music symbols: [Bravura](https://github.com/steinbergmedia/bravura) © Steinberg, SIL Open Font License 1.1.
